@@ -8,6 +8,7 @@
 #include <vector>
 #include <string>
 #include <memory>
+#include <thread>
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -61,13 +62,13 @@ struct LoopRunContext{
   GMainContext *main_context;
 };
 
-void* run_main_loop(void *data) {
-    struct LoopRunContext* d = reinterpret_cast<LoopRunContext*>(data);
-    g_main_context_push_thread_default(d->main_context);
-    g_main_loop_run(d->main_loop);
-    g_main_context_pop_thread_default(d->main_context);
-    return nullptr;
+void  run_main_loop(void* _Nullable context, size_t contextSize) {
+    struct LoopRunContext* d = reinterpret_cast<LoopRunContext*>(context);
+    //HAPLogError(&logObject, "servicing %x", d);
+
+    g_main_context_iteration(d->main_context, FALSE);
 }
+
 
 struct RawUUID{
   char str[37] = { 0 };
@@ -131,6 +132,14 @@ typedef struct OurBLEContainer {
 
   std::map<CharacteristicId, std::vector<uint8_t>> characteristic_values;
 
+  bool started_main_loop{false};
+
+  std::thread service_pusher;
+
+  void service(){
+    g_main_context_iteration(g_main_loop_get_context(loop), FALSE);
+  }
+
 } OurBLEContainer;
 
 static OurBLEContainer* container_singleton = nullptr;
@@ -153,12 +162,13 @@ void on_central_state_changed(Adapter *adapter, Device *device) {
     g_free(deviceToString);
 
     HAPLogInfo(&logObject, "remote central %s is %s", binc_device_get_address(device), binc_device_get_connection_state_name(device));
+    /*
     ConnectionState state = binc_device_get_connection_state(device);
     if (state == BINC_CONNECTED) {
         binc_adapter_stop_advertising(adapter, c->advertisement);
     } else if (state == BINC_DISCONNECTED){
         binc_adapter_start_advertising(adapter, c->advertisement);
-    }
+    }*/
 }
 
 // This function is called when a read is done
@@ -361,12 +371,12 @@ void HAPPlatformBLEPeripheralManagerCreate(
          binc_adapter_register_application(default_adapter, c->app);
 
 
-         c->loop = g_main_loop_new(NULL, FALSE);
          // Bail out after some time
          //g_timeout_add_seconds(600, callback, c);
 
          // Start the mainloop
          //g_main_loop_run(c->loop);
+         /*
          struct LoopRunContext* ctx=  (struct LoopRunContext*) malloc(sizeof(struct LoopRunContext));
 
          // Create a new thread for the runner, we just never shut that down.
@@ -375,6 +385,8 @@ void HAPPlatformBLEPeripheralManagerCreate(
 
          pthread_t thread_id;
          pthread_create(&thread_id, NULL, run_main_loop, ctx);
+         */
+         c->service();
 
 
          // Clean up mainloop
@@ -472,6 +484,7 @@ HAPError HAPPlatformBLEPeripheralManagerAddService(
     int res = binc_application_add_service(c->app, b.str);
     HAPAssert(res == 0);
 
+    c->service();
     return kHAPError_None;
 }
 
@@ -545,6 +558,7 @@ HAPError HAPPlatformBLEPeripheralManagerAddCharacteristic(
 
     }
 
+    c->service();
     return kHAPError_None;
 }
 
@@ -597,6 +611,7 @@ HAPError HAPPlatformBLEPeripheralManagerAddDescriptor(
     }
 
 
+    c->service();
     return kHAPError_None;
 }
 
@@ -628,6 +643,22 @@ void HAPPlatformBLEPeripheralManagerStartAdvertising(
     HAPLogInfo(&logObject, "advertising bytes: %u ", numAdvertisingBytes);
 
     hexdump(advertisingBytes, numAdvertisingBytes);
+
+
+    if (!c->started_main_loop) {
+     LoopRunContext ctx;
+     ctx.main_context = g_main_loop_get_context(c->loop);
+     c->service_pusher = std::thread([ctx](){
+       while (true) {
+        LoopRunContext copied = ctx;
+        int r = HAPPlatformRunLoopScheduleCallback(run_main_loop, &copied, sizeof(ctx));
+        HAPAssert(r == kHAPError_None);
+        usleep(1000);
+       }
+     });
+     c->started_main_loop = true;
+    }
+
 
     // Data contains too much, so we need to trim the first 7 bytes...
     // 0x02,0x01,0x06,0x16,0xff,0x4c,0x00,    0x06,0x31
