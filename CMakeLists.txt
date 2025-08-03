@@ -180,5 +180,13 @@ add_executable(setup_generator
   ./HomeKitADK/Tools/AccessorySetupGenerator/Main.c
 )
 target_link_libraries(setup_generator PRIVATE homekit_adk homekit_linux homekit_pal)
-#/setup_generator  --ip --category 8  --setup-code 111-22-333
-# --category 5 .HomeKitStore
+
+
+add_executable(main_ble
+  ./HomeKitADK/Applications/Lightbulb/Main.c
+  ./HomeKitADK/Applications/Lightbulb/App.c
+  ./HomeKitADK/Applications/Lightbulb/DB.c
+)
+target_link_libraries(main_ble PRIVATE homekit_adk homekit_linux homekit_pal)
+target_compile_definitions(main_ble PUBLIC BLE=1 )
+
