@@ -1,4 +1,5 @@
 PROJECT("homekit_adk_linux_test")
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 # Set global log level to 3.
 add_compile_definitions(HAP_LOG_LEVEL=3)
@@ -189,4 +190,3 @@ add_executable(main_ble
 )
 target_link_libraries(main_ble PRIVATE homekit_adk homekit_linux homekit_pal)
 target_compile_definitions(main_ble PUBLIC BLE=1 )
-

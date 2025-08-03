@@ -1,5 +1,7 @@
 # homekit adk build
 
+Prerequisites, `libbluetooth-dev libavahi-compat-libdnssd-dev libssl-dev`.
+
 ```
 mkdir build
 cd build
@@ -12,7 +14,10 @@ Assert on line 518 of HAPOpenSSL.c.
 
 https://github.com/openssl/openssl/issues/20084
 
-To fix that:
+To fix that, we apply a patch to fix that initialisation vectors, see `HAPOpenSSL.patch`.s
+
+
+We also swap some files from the Linux HAP with
 
 ```
 ./apply_patches.sh

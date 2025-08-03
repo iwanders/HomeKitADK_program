@@ -6,6 +6,14 @@
 
 #include "HAPPlatformBLEPeripheralManager+Init.h"
 
+#include <sys/socket.h>
+#include <bluetooth/bluetooth.h>
+#include <bluetooth/hci.h>
+#include <bluetooth/hci_lib.h>
+
+// Use the raw HCI interface
+// https://github.com/embassy-rs/trouble/blob/main/examples/linux/src/lib.rs
+// https://github.com/bluez/bluez/wiki/HCI
 
 
 static const HAPLogObject logObject = { .subsystem = kHAPPlatform_LogSubsystem, .category = "BLEPeripheralManager" };
@@ -18,6 +26,31 @@ void HAPPlatformBLEPeripheralManagerCreate(
     HAPPrecondition(options);
     HAPPrecondition(options->keyValueStore);
 
+    blePeripheralManager->fd = 0;
+    blePeripheralManager->fd = socket(PF_BLUETOOTH, SOCK_RAW | SOCK_CLOEXEC | SOCK_NONBLOCK, BTPROTO_HCI);
+    if (blePeripheralManager->fd == 0) {
+      HAPLog(&logObject, "Could not open bluetooth socket");
+
+      HAPAssert(blePeripheralManager->fd != 0);
+    }
+
+    struct sockaddr_hci addr;
+
+    memset(&addr, 0, sizeof(addr));
+    addr.hci_family = AF_BLUETOOTH;
+    addr.hci_dev = 0;
+    addr.hci_channel = HCI_CHANNEL_USER;
+
+    HAPLogInfo(&logObject, "Got bluetooth socket? %d", blePeripheralManager->fd);
+
+    int res  = bind(blePeripheralManager->fd,&addr,sizeof(addr));
+    HAPLogInfo(&logObject, "bind? %d", res);
+
+    if (res != 0) {
+      HAPLog(&logObject, "Could not bind socket");
+
+      HAPAssert(res == 0);
+    }
 
 }
 

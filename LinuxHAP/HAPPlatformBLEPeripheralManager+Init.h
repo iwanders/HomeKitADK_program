@@ -36,6 +36,8 @@ struct HAPPlatformBLEPeripheralManager {
     /**@cond */
     char _;
     /**@endcond */
+
+    int fd;
 };
 
 /**
