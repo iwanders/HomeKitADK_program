@@ -3,7 +3,7 @@
 ```
 mkdir build
 cd build
-cmake -DCMAKE_BUILD_TYPE=Debug ../ && make && ../provision.sh --ip --category 8  --setup-code 111-22-333
+cmake -DCMAKE_BUILD_TYPE=Debug ../ && make && rm -f .HomeKitStore/* && ../provision.sh --ip --category 2  --setup-code 111-22-333
 cmake -DCMAKE_BUILD_TYPE=Debug ../ && make && ./main
 ```
 
