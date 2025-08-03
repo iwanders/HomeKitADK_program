@@ -24,7 +24,7 @@ We also swap some files from the Linux HAP with
 ```
 
 
-# BUilding BLuez
+# Building BLuez
 The `shared/gatt-db.h` headers are considered internal and not available by just using the `-dev` package.
 
 Get the source code from https://github.com/bluez/bluez checkout a version close to the one you are running, `5.66`.
