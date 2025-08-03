@@ -23,11 +23,13 @@ if(ENABLE_BLE)
   set(BLUEZ_INCLUDE_DIR "${BLUEZ_INSTALL_DIR}/bluez_inc/")
   set(BLUEZ_LIBRARY_DIR "${BLUEZ_INSTALL_DIR}/build/binc/")
   set(BLUEZ_LINK_LIBRARIES "Binc;m;${GLIB_LIBRARIES};") # libbluetooth-internal.a
+  set(HAP_LINUX_BLUETOOTH_EXT "cpp")
 else()
   set(BLUEZ_INSTALL_DIR "")
   set(BLUEZ_INCLUDE_DIR "")
   set(BLUEZ_LIBRARY_DIR "")
   set(BLUEZ_LINK_LIBRARIES "")
+  set(HAP_LINUX_BLUETOOTH_EXT "c")
 endif()
 
 # Just going with the installed version of libbluetooth doesn't give the functionality I need.
@@ -101,7 +103,7 @@ add_library(homekit_linux STATIC
   ./HomeKitADK/PAL/Linux/HAPPlatformAccessorySetup.c
   ./HomeKitADK/PAL/Linux/HAPPlatformAccessorySetupDisplay.c
   ./HomeKitADK/PAL/Linux/HAPPlatformAccessorySetupNFC.c
-  ./HomeKitADK/PAL/Linux/HAPPlatformBLEPeripheralManager.c
+  ./HomeKitADK/PAL/Linux/HAPPlatformBLEPeripheralManager.${HAP_LINUX_BLUETOOTH_EXT}
   ./HomeKitADK/PAL/Linux/HAPPlatformClock.c
   ./HomeKitADK/PAL/Linux/HAPPlatformFileManager.c
   ./HomeKitADK/PAL/Linux/HAPPlatformKeyValueStore.c

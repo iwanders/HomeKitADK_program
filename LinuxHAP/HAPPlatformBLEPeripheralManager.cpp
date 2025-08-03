@@ -4,7 +4,11 @@
 // you may not use this file except in compliance with the License.
 // See [CONTRIBUTORS.md] for the list of HomeKit ADK project authors.
 
-#include "HAPAssert.h"
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+//#include "HAPAssert.h"
 #include "HAPLog.h"
 #include "HAPPlatformBLEPeripheralManager+Init.h"
 
@@ -46,11 +50,12 @@ struct LoopRunContext{
   GMainContext *main_context;
 };
 
-void run_main_loop(void *data) {
-    struct LoopRunContext* d = data;
+void* run_main_loop(void *data) {
+    struct LoopRunContext* d = reinterpret_cast<LoopRunContext*>(data);
     g_main_context_push_thread_default(d->main_context);
     g_main_loop_run(d->main_loop);
     g_main_context_pop_thread_default(d->main_context);
+    return nullptr;
 }
 
 struct RawUUID{
@@ -73,13 +78,13 @@ typedef struct OurBLEContainer {
 
 
 void on_powered_state_changed(Adapter *adapter, gboolean state) {
-    OurBLEContainer* c = binc_adapter_get_user_data(adapter);
+    OurBLEContainer* c = reinterpret_cast<OurBLEContainer*>(binc_adapter_get_user_data(adapter));
     HAPLogInfo(&logObject, "powered '%s' (%s)", state ? "on" : "off", binc_adapter_get_path(adapter));
     // HAPLogInfo(&logObject, "%s%s", prefix, str);
 }
 
 void on_central_state_changed(Adapter *adapter, Device *device) {
-    OurBLEContainer* c = binc_adapter_get_user_data(adapter);
+  OurBLEContainer* c = reinterpret_cast<OurBLEContainer*>(binc_adapter_get_user_data(adapter));
 
     if (c->device == NULL) {
       c->device = device;
@@ -167,14 +172,15 @@ guint32 on_request_passkey(Device *device) {
 
 static void print_debug(const char *str, void *user_data)
 {
-	const char *prefix = user_data;
+	const char *prefix = reinterpret_cast<const char*>(str);
 
 
 	HAPLogInfo(&logObject, "%s%s", prefix, str);
 }
 
-void hexdump(const uint8_t* d, size_t len) {
-  const char buffer[1024] = { 0 };
+void hexdump(const void* b, size_t len) {
+  const uint8_t* d = reinterpret_cast<const uint8_t*>(b);
+  char buffer[1024] = { 0 };
   char* buff_ptr = buffer;
   for (size_t i = 0; i < len ; i++) {
     int val = d[i];
@@ -300,7 +306,7 @@ void HAPPlatformBLEPeripheralManagerCreate(
          ctx->main_context = g_main_loop_get_context(ctx->main_loop);
 
          pthread_t thread_id;
-         pthread_create(&thread_id, NULL, &run_main_loop, ctx);
+         pthread_create(&thread_id, NULL, run_main_loop, ctx);
 
 
          // Clean up mainloop
@@ -594,3 +600,7 @@ HAPError HAPPlatformBLEPeripheralManagerSendHandleValueIndication(
 
     return kHAPError_None;
 }
+
+#ifdef __cplusplus
+}
+#endif
