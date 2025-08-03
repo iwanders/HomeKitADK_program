@@ -22,7 +22,7 @@ Next, the device should show up for pairing in the Home app on an iOS device.
 
 Okay, this is a bit of a stretch and not working yet.
 
-# Building BLuez
+### Building BLuez
 The `shared/gatt-db.h` headers are considered internal and not available by just using the `-dev` package.
 
 Get the source code from https://github.com/bluez/bluez checkout a version close to the one you are running, `5.66`.
@@ -41,4 +41,9 @@ cp ./lib/.libs/* ./x/usr/lib/
 cp ./src/.libs/* ./x/usr/lib/
 # Clean up intermediate build artifacts
 make clean
+```
+### Compiling
+```
+./apply_patch_ble.sh
+reset; cmake -DCMAKE_BUILD_TYPE=Debug -DENABLE_BLE=YES ../ && VERBOSE=1 make && ./main_ble
 ```

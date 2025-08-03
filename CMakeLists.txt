@@ -16,10 +16,13 @@ pkg_check_modules(DSNSD REQUIRED avahi-compat-libdns_sd)
 option(ENABLE_BLE "Try mocking the BLE platform." OFF)
 
 if(ENABLE_BLE)
-  set(BLUEZ_INSTALL_DIR "../bluezbuild/")
-  set(BLUEZ_INCLUDE_DIR "${BLUEZ_INSTALL_DIR};${BLUEZ_INSTALL_DIR}/x/usr/include/;${BLUEZ_INSTALL_DIR}/src/shared/")
-  set(BLUEZ_LIBRARY_DIR "${BLUEZ_INSTALL_DIR}/bluez/x/usr/lib/")
-  set(BLUEZ_LINK_LIBRARIES "shared-ell;bluetooth-internal;shared-mainloop;ell") # libbluetooth-internal.a
+  include(FindPkgConfig)
+  pkg_check_modules(GLIB glib-2.0 gio-2.0 REQUIRED)
+  include_directories(${GLIB_INCLUDE_DIRS})
+  set(BLUEZ_INSTALL_DIR "../bluez_inc/")
+  set(BLUEZ_INCLUDE_DIR "${BLUEZ_INSTALL_DIR}/bluez_inc/")
+  set(BLUEZ_LIBRARY_DIR "${BLUEZ_INSTALL_DIR}/build/binc/")
+  set(BLUEZ_LINK_LIBRARIES "Binc;m;${GLIB_LIBRARIES};") # libbluetooth-internal.a
 else()
   set(BLUEZ_INSTALL_DIR "")
   set(BLUEZ_INCLUDE_DIR "")
