@@ -7,6 +7,7 @@
 #include "HAPAssert.h"
 #include "HAPPlatformBLEPeripheralManager+Init.h"
 
+#include <stdint.h>
 #include <sys/socket.h>
 #include <stdlib.h>
 #include <bluetooth/bluetooth.h>
@@ -150,32 +151,6 @@ guint32 on_request_passkey(Device *device) {
     return pass;
 }
 
-gboolean callback(gpointer data) {
-  OurBLEContainer* c = data;
-    if (c->agent != NULL) {
-      binc_agent_free(c->agent);
-      c->agent = NULL;
-    }
-
-    if (c->app != NULL) {
-        binc_adapter_unregister_application(c->default_adapter, c->app);
-        binc_application_free(c->app);
-        c->app = NULL;
-    }
-
-    if (c->advertisement != NULL) {
-        binc_adapter_stop_advertising(c->default_adapter, c->advertisement);
-        binc_advertisement_free(c->advertisement);
-    }
-
-    if (c->default_adapter != NULL) {
-        binc_adapter_free(c->default_adapter);
-        c->default_adapter = NULL;
-    }
-
-    g_main_loop_quit((GMainLoop *) data);
-    return FALSE;
-}
 
 static void print_debug(const char *str, void *user_data)
 {
@@ -184,6 +159,17 @@ static void print_debug(const char *str, void *user_data)
 
 	HAPLogInfo(&logObject, "%s%s", prefix, str);
 }
+
+void hexdump(const uint8_t* d, size_t len) {
+  const char buffer[1024] = { 0 };
+  char* buff_ptr = buffer;
+  for (size_t i = 0; i < len ; i++) {
+    int val = d[i];
+    buff_ptr += snprintf(buff_ptr,(&buffer[1024] - buff_ptr), "0x%02x,", val);
+  }
+  HAPLogInfo(&logObject, "hdump %s", buffer);
+}
+
 
 
 void HAPPlatformBLEPeripheralManagerCreate(
@@ -236,6 +222,7 @@ void HAPPlatformBLEPeripheralManagerCreate(
          binc_adapter_set_remote_central_cb(default_adapter, &on_central_state_changed);
 
          // Setup advertisement
+         /*
          GPtrArray *adv_service_uuids = g_ptr_array_new();
          g_ptr_array_add(adv_service_uuids, HTS_SERVICE_UUID);
 
@@ -246,6 +233,7 @@ void HAPPlatformBLEPeripheralManagerCreate(
          binc_advertisement_set_services(c->advertisement, adv_service_uuids);
          g_ptr_array_free(adv_service_uuids, TRUE);
          binc_adapter_start_advertising(default_adapter, c->advertisement);
+         */
 
          // Start application
          c->app = binc_create_application(default_adapter);
@@ -466,19 +454,37 @@ void HAPPlatformBLEPeripheralManagerStartAdvertising(
     HAPPrecondition(numAdvertisingBytes);
     HAPPrecondition(!numScanResponseBytes || scanResponseBytes);
 
+    OurBLEContainer* c = blePeripheralManager->container;
     HAPLog(&logObject, __func__);
+    HAPLogInfo(&logObject, "advertising bytes: %u ", numAdvertisingBytes);
 
-    // CoreBluetooth automatically prepends 3 bytes for Flags to our advertisement data
-    // (It adds flag 0x06: LE General Discoverable Mode bit + BR/EDR Not Supported bit)
-    HAPAssert(numAdvertisingBytes >= 3);
-    advertisingBytes += 3;
-    numAdvertisingBytes -= 3;
-    HAPAssert(numScanResponseBytes >= 2);
-    scanResponseBytes += 2;
-    numScanResponseBytes -= 2;
-    //  NSData* advertisingData = [NSData dataWithBytes:advertisingBytes length:numAdvertisingBytes];
-    //  NSData* scanResponse = [NSData dataWithBytes:scanResponseBytes length:numScanResponseBytes];
-    //  [peripheral startAdvertising:advertisingInterval advertisingData:advertisingData scanResponse:scanResponse];
+    hexdump(advertisingBytes, numAdvertisingBytes);
+
+    // Data contains too much, so we need to trim the first 7 bytes...
+    // 0x02,0x01,0x06,0x16,0xff,0x4c,0x00,    0x06,0x31
+    //
+    //
+    int trim = 7;
+    const uint8_t* actual_data = ((uint8_t*)advertisingBytes) + trim;
+    numAdvertisingBytes = numAdvertisingBytes- trim;
+    numAdvertisingBytes = 19;
+
+    GByteArray* z = g_byte_array_new();
+    g_byte_array_set_size(z, numAdvertisingBytes);
+    memcpy(z->data, actual_data, numAdvertisingBytes);
+    hexdump(actual_data, numAdvertisingBytes);
+    HAPLogInfo(&logObject, "advertising bytes: %u ", numAdvertisingBytes);
+
+
+    c->advertisement = binc_advertisement_create();
+    binc_advertisement_set_general_discoverable(c->advertisement, true);
+
+    uint16_t COMPANY_IDENTIFIER_CODE =  0x004c;
+    binc_advertisement_set_manufacturer_data(c->advertisement,COMPANY_IDENTIFIER_CODE,z);
+    g_byte_array_free(z, true);
+
+
+    binc_adapter_start_advertising(c->default_adapter, c->advertisement);
 }
 
 void HAPPlatformBLEPeripheralManagerStopAdvertising(HAPPlatformBLEPeripheralManagerRef blePeripheralManager) {
