@@ -1,6 +1,13 @@
-# homekit adk build
+# HomeKitADK Program
 
-Prerequisites, `libbluetooth-dev libavahi-compat-libdnssd-dev libssl-dev`.
+This repo is a _very hacky_ repo to run the examples from the `HomeKitADK`.
+
+Upstream [apple/HomeKitADK](https://github.com/apple/HomeKitADK) needs some patches to run these days.
+
+1. Clone this repository recursively.
+2. Install Prerequisites, `libbluetooth-dev libavahi-compat-libdnssd-dev libssl-dev`.
+3. Run `./apply_patch.sh`, this prevents the assert on line 518 of `HAPOpenSSL.c`, openssl no longer support a non standard nonce. [ticket](https://github.com/openssl/openssl/issues/20084).
+4. Provision and build with:
 
 ```
 mkdir build
@@ -9,20 +16,11 @@ cmake -DCMAKE_BUILD_TYPE=Debug ../ && make && rm -f .HomeKitStore/* && ../provis
 cmake -DCMAKE_BUILD_TYPE=Debug ../ && make && ./main
 ```
 
+Next, the device should show up for pairing in the Home app on an iOS device.
 
-Assert on line 518 of HAPOpenSSL.c.
+## Bluetooth
 
-https://github.com/openssl/openssl/issues/20084
-
-To fix that, we apply a patch to fix that initialisation vectors, see `HAPOpenSSL.patch`.s
-
-
-We also swap some files from the Linux HAP with
-
-```
-./apply_patches.sh
-```
-
+Okay, this is a bit of a stretch and not working yet.
 
 # Building BLuez
 The `shared/gatt-db.h` headers are considered internal and not available by just using the `-dev` package.

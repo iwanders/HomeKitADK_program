@@ -13,12 +13,19 @@ find_package(OpenSSL REQUIRED)
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(DSNSD REQUIRED avahi-compat-libdns_sd)
 
+option(ENABLE_BLE "Try mocking the BLE platform." OFF)
 
-
-set(BLUEZ_INSTALL_DIR "../bluezbuild/")
-set(BLUEZ_INCLUDE_DIR "${BLUEZ_INSTALL_DIR};${BLUEZ_INSTALL_DIR}/x/usr/include/;${BLUEZ_INSTALL_DIR}/src/shared/")
-set(BLUEZ_LIBRARY_DIR "${BLUEZ_INSTALL_DIR}/bluez/x/usr/lib/")
-set(BLUEZ_LINK_LIBRARIES "shared-ell;bluetooth-internal;shared-mainloop;ell") # libbluetooth-internal.a
+if(ENABLE_BLE)
+  set(BLUEZ_INSTALL_DIR "../bluezbuild/")
+  set(BLUEZ_INCLUDE_DIR "${BLUEZ_INSTALL_DIR};${BLUEZ_INSTALL_DIR}/x/usr/include/;${BLUEZ_INSTALL_DIR}/src/shared/")
+  set(BLUEZ_LIBRARY_DIR "${BLUEZ_INSTALL_DIR}/bluez/x/usr/lib/")
+  set(BLUEZ_LINK_LIBRARIES "shared-ell;bluetooth-internal;shared-mainloop;ell") # libbluetooth-internal.a
+else()
+  set(BLUEZ_INSTALL_DIR "")
+  set(BLUEZ_INCLUDE_DIR "")
+  set(BLUEZ_LIBRARY_DIR "")
+  set(BLUEZ_LINK_LIBRARIES "")
+endif()
 
 # Just going with the installed version of libbluetooth doesn't give the functionality I need.
 # https://stackoverflow.com/a/33144860
@@ -196,6 +203,7 @@ add_executable(setup_generator
 target_link_libraries(setup_generator PRIVATE homekit_adk homekit_linux homekit_pal)
 
 
+if(ENABLE_BLE)
 add_executable(main_ble
   ./HomeKitADK/Applications/Lightbulb/Main.c
   ./HomeKitADK/Applications/Lightbulb/App.c
@@ -203,3 +211,4 @@ add_executable(main_ble
 )
 target_link_libraries(main_ble PRIVATE homekit_adk homekit_linux homekit_pal)
 target_compile_definitions(main_ble PUBLIC BLE=1 )
+endif()
