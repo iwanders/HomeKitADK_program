@@ -5,8 +5,10 @@
 // See [CONTRIBUTORS.md] for the list of HomeKit ADK project authors.
 
 #include "HAPAssert.h"
+#include "HAPLog.h"
 #include "HAPPlatformBLEPeripheralManager+Init.h"
 
+#include <math.h>
 #include <stdint.h>
 #include <sys/socket.h>
 #include <stdlib.h>
@@ -20,6 +22,7 @@
 #include <signal.h>
 #include "binc/adapter.h"
 #include "binc/device.h"
+//#include "binc/device_internal.h"
 #include "binc/logger.h"
 #include "binc/agent.h"
 #include "binc/application.h"
@@ -50,6 +53,10 @@ void run_main_loop(void *data) {
     g_main_context_pop_thread_default(d->main_context);
 }
 
+struct RawUUID{
+  char str[37];
+};
+
 typedef struct OurBLEContainer {
 
 
@@ -59,6 +66,8 @@ typedef struct OurBLEContainer {
   Advertisement *advertisement;
   Application *app;
   Agent *agent;
+  Device * device;
+  struct RawUUID recent_service;
 
 } OurBLEContainer;
 
@@ -70,7 +79,11 @@ void on_powered_state_changed(Adapter *adapter, gboolean state) {
 }
 
 void on_central_state_changed(Adapter *adapter, Device *device) {
-  OurBLEContainer* c = binc_adapter_get_user_data(adapter);
+    OurBLEContainer* c = binc_adapter_get_user_data(adapter);
+
+    if (c->device == NULL) {
+      c->device = device;
+    }
 
     char *deviceToString = binc_device_to_string(device);
     HAPLogInfo(&logObject, deviceToString);
@@ -170,6 +183,15 @@ void hexdump(const uint8_t* d, size_t len) {
   HAPLogInfo(&logObject, "hdump %s", buffer);
 }
 
+static struct RawUUID fromBytes(const uint8_t* uuid) {
+  struct RawUUID res;
+  sprintf(&res.str[0],
+  "%02x%02x%02x%02x-%02x%02x-%02x%02x-%02x%02x-%02x%02x%02x%02x%02x%02x",
+      uuid[0], uuid[1], uuid[2], uuid[3], uuid[4], uuid[5], uuid[6], uuid[7],
+      uuid[8], uuid[9], uuid[10], uuid[11], uuid[12], uuid[13], uuid[14], uuid[15]
+  );
+  return res;
+}
 
 
 void HAPPlatformBLEPeripheralManagerCreate(
@@ -302,6 +324,15 @@ void HAPPlatformBLEPeripheralManagerSetDelegate(
 
 }
 
+
+static void inject_hex(uint8_t* location, uint8_t v) {
+    const char* lookup = "0123456789ABCDEF";
+    uint8_t low = v& 0xf;
+    uint8_t high =  (v >> 4) & 0xF;
+    location[0] = lookup[high];
+    location[1] = lookup[low];
+}
+
 void HAPPlatformBLEPeripheralManagerSetDeviceAddress(
         HAPPlatformBLEPeripheralManagerRef blePeripheralManager,
         const HAPPlatformBLEPeripheralManagerDeviceAddress* deviceAddress) {
@@ -309,6 +340,22 @@ void HAPPlatformBLEPeripheralManagerSetDeviceAddress(
     HAPPrecondition(deviceAddress);
 
     HAPLog(&logObject, __func__);
+
+    hexdump(deviceAddress, 6);
+
+    uint8_t address_with_colons[sizeof("AA:BB:CC:DD:EE:FF") ] = "AA:BB:CC:DD:EE:FF";
+    for (uint8_t bindex = 0; bindex < 6; bindex++){
+      const uint8_t* rawbytes = (const uint8_t*)deviceAddress;
+      inject_hex(&(address_with_colons[bindex * 3]), rawbytes[bindex]);
+    }
+    hexdump(address_with_colons, sizeof("AA:BB:CC:DD:EE:FF") );
+
+    HAPLogInfo(&logObject, "Setting address to  to %s", address_with_colons);
+    OurBLEContainer* c = blePeripheralManager->container;
+    HAPPrecondition(c->device);
+
+    HAPLogError(&logObject, "much sad, can't set address");
+    //binc_device_set_address(c->device, address_with_colons);
 }
 
 void HAPPlatformBLEPeripheralManagerSetDeviceName(
@@ -317,7 +364,13 @@ void HAPPlatformBLEPeripheralManagerSetDeviceName(
     HAPPrecondition(blePeripheralManager);
     HAPPrecondition(deviceName);
 
+    HAPLogInfo(&logObject, "Setting name to %s", deviceName);
+    OurBLEContainer* c = blePeripheralManager->container;
+    //binc_device_set_name(c->device, deviceName);
+
     HAPLog(&logObject, __func__);
+
+    HAPLogError(&logObject, "Can't set device name");
 }
 
 static void memrev(uint8_t* dst, const uint8_t* src, size_t n) {
@@ -337,13 +390,14 @@ HAPError HAPPlatformBLEPeripheralManagerAddService(
 
     HAPLog(&logObject, __func__);
 
-/*
-    if (!peripheral) {
-        peripheral = [[HAPBLEPeripheralDarwin alloc] init];
-    }
+    OurBLEContainer* c = blePeripheralManager->container;
 
-    [peripheral addService:[[CBMutableService alloc] initWithType:uuid(type) primary:isPrimary]];
-*/
+    struct RawUUID b = fromBytes((uint8_t*)type);
+    c->recent_service = b;
+    hexdump(type->bytes, 16);
+    int res = binc_application_add_service(c->app, b.str);
+    HAPAssert(res == 0);
+
     return kHAPError_None;
 }
 
@@ -353,6 +407,23 @@ void HAPPlatformBLEPeripheralManagerRemoveAllServices(HAPPlatformBLEPeripheralMa
     HAPLog(&logObject, __func__);
 
     //  [peripheral removeAllServices];
+}
+
+static guint makePermission(HAPPlatformBLEPeripheralManagerCharacteristicProperties properties) {
+  guint prop = 0;
+
+  if (properties.read)
+      prop |= GATT_CHR_PROP_READ;
+  if (properties.write)
+      prop |= GATT_CHR_PROP_WRITE;
+  if (properties.writeWithoutResponse)
+      prop |= GATT_CHR_PROP_WRITE_WITHOUT_RESP;
+  if (properties.notify)
+      prop |= GATT_CHR_PROP_NOTIFY;
+  if (properties.indicate)
+      prop |= GATT_CHR_PROP_INDICATE;
+
+  return prop;
 }
 
 HAP_RESULT_USE_CHECK
@@ -375,25 +446,26 @@ HAPError HAPPlatformBLEPeripheralManagerAddCharacteristic(
     }
 
     HAPLog(&logObject, __func__);
+    OurBLEContainer* c = blePeripheralManager->container;
+
+    const char* recent_service = c->recent_service.str;
+
+    HAPLogInfo(&logObject, "add characteristic, const bytes: %lu ", constNumBytes);
+    hexdump(type->bytes, 16);
+
+
+    struct RawUUID b = fromBytes((uint8_t*)type);
+    guint permissions = makePermission(properties);
+    int res = binc_application_add_characteristic(c->app, recent_service,
+                                            b.str, permissions);
+    if (constNumBytes != 0) {
+      HAPLogError(&logObject, "Have const data that needs handling.");
+    }
+
+    //int binc_application_add_characteristic(Application *application, const char *service_uuid,
+    //                                        const char *char_uuid, guint permissions);
 
     /*
-    CBCharacteristicProperties prop = 0;
-    if (properties.read)
-        prop |= CBCharacteristicPropertyRead;
-    if (properties.write)
-        prop |= CBCharacteristicPropertyWrite;
-    if (properties.writeWithoutResponse)
-        prop |= CBCharacteristicPropertyWriteWithoutResponse;
-    if (properties.notify)
-        prop |= CBCharacteristicPropertyNotify;
-    if (properties.indicate)
-        prop |= CBCharacteristicPropertyIndicate;
-    CBAttributePermissions perm = 0;
-    if (properties.read || properties.notify || properties.indicate)
-        perm |= CBAttributePermissionsReadable;
-    if (properties.write || properties.writeWithoutResponse)
-        perm |= CBAttributePermissionsWriteable;
-
     NSData* value = constBytes ? [NSData dataWithBytes:constBytes length:constNumBytes] : nil;
     CBMutableCharacteristic* characteristic = [[CBMutableCharacteristic alloc] initWithType:uuid(type)
                                                                                  properties:prop
@@ -467,7 +539,7 @@ void HAPPlatformBLEPeripheralManagerStartAdvertising(
     int trim = 7;
     const uint8_t* actual_data = ((uint8_t*)advertisingBytes) + trim;
     numAdvertisingBytes = numAdvertisingBytes- trim;
-    numAdvertisingBytes = 19;
+    numAdvertisingBytes = 19; // and just truncate the rear.
 
     GByteArray* z = g_byte_array_new();
     g_byte_array_set_size(z, numAdvertisingBytes);
@@ -490,9 +562,12 @@ void HAPPlatformBLEPeripheralManagerStartAdvertising(
 void HAPPlatformBLEPeripheralManagerStopAdvertising(HAPPlatformBLEPeripheralManagerRef blePeripheralManager) {
     HAPPrecondition(blePeripheralManager);
 
+    OurBLEContainer* c = blePeripheralManager->container;
     HAPLog(&logObject, __func__);
 
-    //  [peripheral stopAdvertising];
+    binc_adapter_stop_advertising(c->default_adapter, c->advertisement);
+    binc_advertisement_free(c->advertisement);
+
 }
 
 void HAPPlatformBLEPeripheralManagerCancelCentralConnection(
