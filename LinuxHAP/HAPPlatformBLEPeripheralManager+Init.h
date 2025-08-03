@@ -28,6 +28,7 @@ typedef struct {
     HAPPlatformKeyValueStoreRef keyValueStore;
 } HAPPlatformBLEPeripheralManagerOptions;
 
+struct OurBLEContainer;
 /**
  * BLE peripheral manager.
  */
@@ -37,7 +38,7 @@ struct HAPPlatformBLEPeripheralManager {
     char _;
     /**@endcond */
 
-    int fd;
+    struct OurBLEContainer* container;
 };
 
 /**

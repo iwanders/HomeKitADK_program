@@ -7,17 +7,34 @@
 #include "HAPPlatformBLEPeripheralManager+Init.h"
 
 #include <sys/socket.h>
+#include <stdlib.h>
 #include <bluetooth/bluetooth.h>
 #include <bluetooth/hci.h>
 #include <bluetooth/hci_lib.h>
+
+// Bluez include mess.
+#include "bluez/lib/uuid.h"
+#include <bluez/src/shared/gatt-db.h>
 
 // Use the raw HCI interface
 // https://github.com/embassy-rs/trouble/blob/main/examples/linux/src/lib.rs
 // https://github.com/bluez/bluez/wiki/HCI
 
+// https://github.com/bluez/bluez/blob/2c0c323d08357a4ff3065fcd49fee0c83b5835cd/unit/test-gatt.c#L675
 
 static const HAPLogObject logObject = { .subsystem = kHAPPlatform_LogSubsystem, .category = "BLEPeripheralManager" };
 
+
+
+typedef struct OurBLEContainer {
+  int fd;
+
+
+  struct bt_gatt_server *server;
+	struct bt_att *att;
+	struct gatt_db *server_db;
+
+} OurBLEContainer;
 
 void HAPPlatformBLEPeripheralManagerCreate(
         HAPPlatformBLEPeripheralManagerRef blePeripheralManager,
@@ -26,13 +43,20 @@ void HAPPlatformBLEPeripheralManagerCreate(
     HAPPrecondition(options);
     HAPPrecondition(options->keyValueStore);
 
-    blePeripheralManager->fd = 0;
-    blePeripheralManager->fd = socket(PF_BLUETOOTH, SOCK_RAW | SOCK_CLOEXEC | SOCK_NONBLOCK, BTPROTO_HCI);
-    if (blePeripheralManager->fd == 0) {
+    if (blePeripheralManager->container == NULL) {
+      blePeripheralManager->container = (OurBLEContainer*) malloc(sizeof(OurBLEContainer));
+    }
+    OurBLEContainer* c = blePeripheralManager->container;
+
+    c->fd = 0;
+    c->fd = socket(PF_BLUETOOTH, SOCK_RAW | SOCK_CLOEXEC | SOCK_NONBLOCK, BTPROTO_HCI);
+    if (c->fd == 0) {
       HAPLog(&logObject, "Could not open bluetooth socket");
 
-      HAPAssert(blePeripheralManager->fd != 0);
+      HAPAssert(c->fd != 0);
     }
+
+    int foo = hci_open_dev(0);
 
     struct sockaddr_hci addr;
 
@@ -41,9 +65,9 @@ void HAPPlatformBLEPeripheralManagerCreate(
     addr.hci_dev = 0;
     addr.hci_channel = HCI_CHANNEL_USER;
 
-    HAPLogInfo(&logObject, "Got bluetooth socket? %d", blePeripheralManager->fd);
+    HAPLogInfo(&logObject, "Got bluetooth socket? %d", c->fd);
 
-    int res  = bind(blePeripheralManager->fd,&addr,sizeof(addr));
+    int res  = bind(c->fd,&addr,sizeof(addr));
     HAPLogInfo(&logObject, "bind? %d", res);
 
     if (res != 0) {
@@ -51,6 +75,8 @@ void HAPPlatformBLEPeripheralManagerCreate(
 
       HAPAssert(res == 0);
     }
+
+    c->server_db = gatt_db_new();
 
 }
 

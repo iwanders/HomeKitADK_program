@@ -13,7 +13,17 @@ find_package(OpenSSL REQUIRED)
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(DSNSD REQUIRED avahi-compat-libdns_sd)
 
-message(WARN "flskjglsdf ${DSNSD_Libs}")
+
+
+set(BLUEZ_INSTALL_DIR "../bluezbuild/")
+set(BLUEZ_INCLUDE_DIR "${BLUEZ_INSTALL_DIR};${BLUEZ_INSTALL_DIR}/x/usr/include/;${BLUEZ_INSTALL_DIR}/src/shared/")
+set(BLUEZ_LIBRARY_DIR "${BLUEZ_INSTALL_DIR}/bluez/x/usr/lib/")
+set(BLUEZ_LINK_LIBRARIES "shared-ell;bluetooth-internal;shared-mainloop;ell") # libbluetooth-internal.a
+
+# Just going with the installed version of libbluetooth doesn't give the functionality I need.
+# https://stackoverflow.com/a/33144860
+#pkg_check_modules(BLUEZ REQUIRED bluez)
+
 
 #get_cmake_property(_variableNames VARIABLES)
 #list (SORT _variableNames)
@@ -98,8 +108,11 @@ target_include_directories(homekit_linux PUBLIC
   ./HomeKitADK/PAL/Linux/
   ./HomeKitADK/PAL/
   ./HomeKitADK/HAP/
+  ${BLUEZ_INCLUDE_DIR}
 )
-target_link_libraries(homekit_linux PUBLIC  ${DSNSD_LIBRARIES})
+target_link_directories(homekit_linux PUBLIC ${BLUEZ_LIBRARY_DIR})
+target_link_libraries(homekit_linux PUBLIC  ${BLUEZ_LINK_LIBRARIES} )
+target_link_libraries(homekit_linux PUBLIC  ${DSNSD_LIBRARIES} )
 
 add_library(homekit_adk STATIC
 ./HomeKitADK/HAP/HAPAccessory+Info.c
