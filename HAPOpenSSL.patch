@@ -1,0 +1,41 @@
+diff --git a/PAL/Crypto/OpenSSL/HAPOpenSSL.c b/PAL/Crypto/OpenSSL/HAPOpenSSL.c
+index fc07634..94318cc 100644
+--- a/PAL/Crypto/OpenSSL/HAPOpenSSL.c
++++ b/PAL/Crypto/OpenSSL/HAPOpenSSL.c
+@@ -456,15 +456,12 @@ void HAP_chacha20_poly1305_update_enc(
+     EVP_CIPHER_CTX_Handle* handle = (EVP_CIPHER_CTX_Handle*) ctx;
+     int ret;
+     if (!handle->ctx) {
+-        handle->ctx = EVP_CIPHER_CTX_new();
+-        ret = EVP_EncryptInit_ex(handle->ctx, EVP_chacha20_poly1305(), 0, 0, 0);
+-        HAPAssert(ret == 1);
+-        ret = EVP_CIPHER_CTX_ctrl(handle->ctx, EVP_CTRL_AEAD_SET_TAG, CHACHA20_POLY1305_TAG_BYTES, NULL);
+-        HAPAssert(ret == 1);
+-        ret = EVP_CIPHER_CTX_ctrl(handle->ctx, EVP_CTRL_AEAD_SET_IVLEN, n_len, NULL);
+-        HAPAssert(ret == 1);
+-        ret = EVP_EncryptInit_ex(handle->ctx, NULL, NULL, k, n);
+-        HAPAssert(ret == 1);
++      handle->ctx = EVP_CIPHER_CTX_new();
++      char iv_vector[12] = {0};
++      memcpy(iv_vector + 4  , n, n_len);
++      ret = EVP_EncryptInit_ex(handle->ctx, EVP_chacha20_poly1305(), NULL, k, (const uint8_t*)iv_vector);
++      HAPAssert(ret == 1);
++      printf("done init\n");
+     }
+     if (m_len > 0) {
+         uint8_t* tmp;
+@@ -514,9 +511,11 @@ void HAP_chacha20_poly1305_update_dec(
+         handle->ctx = EVP_CIPHER_CTX_new();
+         int ret = EVP_DecryptInit_ex(handle->ctx, EVP_chacha20_poly1305(), 0, 0, 0);
+         HAPAssert(ret == 1);
+-        ret = EVP_CIPHER_CTX_ctrl(handle->ctx, EVP_CTRL_AEAD_SET_IVLEN, n_len, NULL);
+-        HAPAssert(ret == 1);
+-        ret = EVP_DecryptInit_ex(handle->ctx, NULL, NULL, k, n);
++        //ret = EVP_CIPHER_CTX_ctrl(handle->ctx, EVP_CTRL_AEAD_SET_IVLEN, n_len, NULL);
++        //HAPAssert(ret == 1);
++        char iv_vector[12] = {0};
++        memcpy(iv_vector + 4, n, n_len);
++        ret = EVP_DecryptInit_ex(handle->ctx, NULL, NULL, k, iv_vector);
+         HAPAssert(ret == 1);
+     }
+     if (c_len > 0) {

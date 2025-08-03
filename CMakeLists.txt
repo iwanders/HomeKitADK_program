@@ -74,7 +74,6 @@ target_link_libraries(homekit_crypto PUBLIC homekit_util OpenSSL::SSL)
 
 
 
-
 add_library(homekit_linux STATIC
   ./HomeKitADK/PAL/Linux/HAPPlatform.c
   ./HomeKitADK/PAL/Linux/HAPPlatformAbort.c
