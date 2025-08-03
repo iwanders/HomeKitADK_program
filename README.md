@@ -11,3 +11,9 @@ cmake -DCMAKE_BUILD_TYPE=Debug ../ && make && ./main
 Assert on line 518 of HAPOpenSSL.c.
 
 https://github.com/openssl/openssl/issues/20084
+
+To fix that:
+
+```
+./apply_patches.sh
+```
