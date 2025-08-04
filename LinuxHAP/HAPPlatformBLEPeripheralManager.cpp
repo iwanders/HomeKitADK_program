@@ -7,6 +7,7 @@
 #include "HAPPlatformBLEPeripheralManager.h"
 #include "HAPAssert.h"
 #include "binc/characteristic.h"
+#include "glibconfig.h"
 #include <map>
 #include <vector>
 #include <string>
@@ -31,16 +32,16 @@ extern "C" {
 #include <pthread.h>
 #include <glib.h>
 #include <stdio.h>
-#include <signal.h>
+
 #include "binc/adapter.h"
 #include "binc/device.h"
+#include "binc/application.h"
 
 #include "binc/logger.h"
 #include "binc/agent.h"
 #include "binc/application.h"
 #include "binc/advertisement.h"
 #include "binc/utility.h"
-#include "binc/parser.h"
 
 // Use the raw HCI interface
 // https://github.com/embassy-rs/trouble/blob/main/examples/linux/src/lib.rs
@@ -56,6 +57,8 @@ extern "C" {
 //
 // No use data on the application.
 
+// void binc_device_disconnect(Device *device);
+// HAPPlatformBLEPeripheralManagerCancelCentralConnection
 
 
 static const HAPLogObject logObject = { .subsystem = kHAPPlatform_LogSubsystem, .category = "BLEPeripheralManager" };
@@ -170,12 +173,17 @@ typedef struct OurBLEContainer {
 
   uint16_t handle_counter{0};
 
+  uint16_t connection_handle{0};
+
   std::map<CharacteristicId, uint16_t> characteristic_handles;
   std::map<DescriptorId, uint16_t> descriptor_handles;
 
+  HAPPlatformBLEPeripheralManagerDelegate delegate;
+  HAPPlatformBLEPeripheralManagerRef manager;
+
 } OurBLEContainer;
 
-static OurBLEContainer* container_singleton = nullptr;
+
 
 void on_powered_state_changed(Adapter *adapter, gboolean state) {
     OurBLEContainer* c = reinterpret_cast<OurBLEContainer*>(binc_adapter_get_user_data(adapter));
@@ -188,7 +196,7 @@ void on_powered_state_changed(Adapter *adapter, gboolean state) {
 }
 
 void on_central_state_changed(Adapter *adapter, Device *device) {
-  OurBLEContainer* c = reinterpret_cast<OurBLEContainer*>(binc_adapter_get_user_data(adapter));
+    OurBLEContainer* c = reinterpret_cast<OurBLEContainer*>(binc_adapter_get_user_data(adapter));
 
 
     if (c->device == NULL) {
@@ -200,13 +208,18 @@ void on_central_state_changed(Adapter *adapter, Device *device) {
     g_free(deviceToString);
 
     HAPLogInfo(&logObject, "remote central %s is %s", binc_device_get_address(device), binc_device_get_connection_state_name(device));
-    /*
+
     ConnectionState state = binc_device_get_connection_state(device);
     if (state == BINC_CONNECTED) {
-        binc_adapter_stop_advertising(adapter, c->advertisement);
+        c->connection_handle++;
+        if (c->delegate.handleConnectedCentral) {
+          (*(c->delegate.handleConnectedCentral))(c->manager, c->connection_handle, c->delegate.context);
+        }
     } else if (state == BINC_DISCONNECTED){
-        binc_adapter_start_advertising(adapter, c->advertisement);
-    }*/
+        if (c->delegate.handleDisconnectedCentral) {
+          (*(c->delegate.handleDisconnectedCentral))(c->manager, c->connection_handle, c->delegate.context);
+        }
+    }
 
 }
 
@@ -214,24 +227,43 @@ void on_central_state_changed(Adapter *adapter, Device *device) {
 // Use this to set the characteristic value if it is not set or to reject the read request
 const char *on_local_char_read(const Application *application, const char *address, const char *service_uuid,
                         const char *char_uuid) {
-    OurBLEContainer* c = container_singleton;
+    OurBLEContainer* c = reinterpret_cast<OurBLEContainer*>(binc_application_get_user_data(application));
 
 
     CharacteristicId key = CharacteristicId::service_characteristic(service_uuid, char_uuid);
     std::string key_str = key;
-    HAPLogError(&logObject, "Reading %s", key_str.c_str());
-    HAPAssert(false);
+    HAPLogError(&logObject, "Reading %s with %p", key_str.c_str(), c);
 
-    /*
-    if (g_str_equal(service_uuid, HTS_SERVICE_UUID) && g_str_equal(char_uuid, TEMPERATURE_CHAR_UUID)) {
-        const guint8 bytes[] = {0x06, 0x6f, 0x01, 0x00, 0xff, 0xe6, 0x07, 0x03, 0x03, 0x10, 0x04, 0x00, 0x01};
-        GByteArray *byteArray = g_byte_array_sized_new(sizeof(bytes));
-        g_byte_array_append(byteArray, bytes, sizeof(bytes));
-        binc_application_set_char_value(application, service_uuid, char_uuid, byteArray);
-        g_byte_array_free(byteArray, TRUE);
-        return NULL;
-    }*/
-    return BLUEZ_ERROR_REJECTED;
+    const auto handle_it = c->characteristic_handles.find(key);
+    HAPAssert(handle_it != c->characteristic_handles.end());
+
+    const auto handle_id = handle_it->second;
+
+    uint8_t bytes[kHAPPlatformBLEPeripheralManager_MaxAttributeBytes] = { 0 };
+    size_t len = 0;
+
+    HAPError err = c->delegate.handleReadRequest(
+            c->manager,
+            c->connection_handle,
+            handle_id,
+            bytes,
+            kHAPPlatformBLEPeripheralManager_MaxAttributeBytes,
+            &len,
+            c->delegate.context);
+    if (err) {
+        HAPAssert(err == kHAPError_InvalidState || err == kHAPError_OutOfResources);
+        return BLUEZ_ERROR_REJECTED;
+    } else {
+      return NULL;
+    }
+
+    // Okay, so now we have 'len' bytes in 'bytes' that we need to populate the characteristic with.
+    GByteArray *byteArray = g_byte_array_sized_new(len);
+    g_byte_array_append(byteArray, bytes, len);
+    binc_application_set_char_value(application, service_uuid, char_uuid, byteArray);
+    g_byte_array_free(byteArray, TRUE);
+
+    return NULL;
 }
 
 // This function should be used to validate or reject a write request
@@ -241,7 +273,38 @@ const char *on_local_char_write(const Application *application, const char *addr
     HAPLogError(&logObject, "write request characteristic <%s> with value <%s>", char_uuid, result->str);
     g_string_free(result, TRUE);
 
-    HAPAssert(false);
+    OurBLEContainer* c = reinterpret_cast<OurBLEContainer*>(binc_application_get_user_data(application));
+
+
+    CharacteristicId key = CharacteristicId::service_characteristic(service_uuid, char_uuid);
+    std::string key_str = key;
+    HAPLogError(&logObject, "Writing to  %s with %p", key_str.c_str(), c);
+
+    const auto handle_it = c->characteristic_handles.find(key);
+    HAPAssert(handle_it != c->characteristic_handles.end());
+
+    const auto handle_id = handle_it->second;
+
+    uint8_t bytes[kHAPPlatformBLEPeripheralManager_MaxAttributeBytes] = { 0 };
+    size_t len = byteArray->len;
+    // Copy from the gbyte array into our buffer.
+    memcpy(bytes, byteArray->data, len);
+
+    HAPError err = c->delegate.handleWriteRequest(
+            c->manager,
+            c->connection_handle,
+            handle_id,
+            bytes,
+            len,
+            c->delegate.context);
+    if (err) {
+        HAPAssert(err == kHAPError_InvalidState || err == kHAPError_OutOfResources);
+        return BLUEZ_ERROR_REJECTED;
+    } else {
+      return NULL;
+    }
+
+    // Nothing to do here.
     return NULL;
 }
 
@@ -335,11 +398,10 @@ void HAPPlatformBLEPeripheralManagerCreate(
 
     if (blePeripheralManager->container == NULL) {
       blePeripheralManager->container = std::make_unique<OurBLEContainer>().release();
-      container_singleton = blePeripheralManager->container;
     }
     OurBLEContainer* c = blePeripheralManager->container;
 
-
+    c->manager = blePeripheralManager;
 
 
     // Get a DBus connection
@@ -357,7 +419,7 @@ void HAPPlatformBLEPeripheralManagerCreate(
 
 
      // Set our default adapter.
-     binc_adapter_set_user_data(c->default_adapter, &c);
+     binc_adapter_set_user_data(c->default_adapter, c);
 
 
 
@@ -402,6 +464,7 @@ void HAPPlatformBLEPeripheralManagerCreate(
 
          // Start application
          c->app = binc_create_application(default_adapter);
+         binc_application_set_user_data(c->app, c);
          //binc_application_set_char_value(const Application *application, const char *service_uuid, const char *char_uuid, GByteArray *byteArray)
          /*
          binc_application_add_service(app, HTS_SERVICE_UUID);
@@ -447,7 +510,6 @@ void HAPPlatformBLEPeripheralManagerCreate(
          pthread_t thread_id;
          pthread_create(&thread_id, NULL, run_main_loop, ctx);
          */
-         c->service();
 
 
          // Clean up mainloop
@@ -468,6 +530,10 @@ void HAPPlatformBLEPeripheralManagerSetDelegate(
         const HAPPlatformBLEPeripheralManagerDelegate* _Nullable delegate_) {
     HAPPrecondition(blePeripheralManager_);
 
+    OurBLEContainer* c = blePeripheralManager_->container;
+    if (delegate_) {
+      c->delegate = *delegate_;
+    }
 
     HAPLog(&logObject, __func__);
 }
@@ -514,7 +580,6 @@ void HAPPlatformBLEPeripheralManagerSetDeviceName(
 
     HAPLogInfo(&logObject, "Setting name to %s", deviceName);
     OurBLEContainer* c = blePeripheralManager->container;
-    //binc_device_set_name(c->device, deviceName);
 
     HAPLog(&logObject, __func__);
 
@@ -539,7 +604,7 @@ HAPError HAPPlatformBLEPeripheralManagerAddService(
     HAPLog(&logObject, __func__);
 
     OurBLEContainer* c = blePeripheralManager->container;
-    c->service();
+
 
     // We cannot handle non primary services, so drop the ball if they are not primary.
     HAPAssert(isPrimary);
@@ -821,7 +886,8 @@ void HAPPlatformBLEPeripheralManagerStopAdvertising(HAPPlatformBLEPeripheralMana
     HAPLog(&logObject, __func__);
 
     binc_adapter_stop_advertising(c->default_adapter, c->advertisement);
-    binc_advertisement_free(c->advertisement);
+    // This here causes a bad free? Why is that? Do we have to service the main loop before doing this?
+    //binc_advertisement_free(c->advertisement);
 
 }
 
@@ -829,10 +895,12 @@ void HAPPlatformBLEPeripheralManagerCancelCentralConnection(
         HAPPlatformBLEPeripheralManagerRef blePeripheralManager,
         HAPPlatformBLEPeripheralManagerConnectionHandle connectionHandle HAP_UNUSED) {
     HAPPrecondition(blePeripheralManager);
-
     HAPLog(&logObject, __func__);
 
-    //  [peripheral updateCentralConnection:nil];
+    // Request a disconnect.
+    OurBLEContainer* c = blePeripheralManager->container;
+    binc_device_disconnect(c->device);
+
 }
 
 HAP_RESULT_USE_CHECK

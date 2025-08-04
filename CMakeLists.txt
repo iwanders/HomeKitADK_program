@@ -19,10 +19,9 @@ if(ENABLE_BLE)
   include(FindPkgConfig)
   pkg_check_modules(GLIB glib-2.0 gio-2.0 REQUIRED)
   include_directories(${GLIB_INCLUDE_DIRS})
+
   add_subdirectory(bluez_inc/binc)
-  set(BLUEZ_INSTALL_DIR "../bluez_inc/")
-  set(BLUEZ_INCLUDE_DIR "${BLUEZ_INSTALL_DIR}/bluez_inc/")
-  set(BLUEZ_LIBRARY_DIR "${BLUEZ_INSTALL_DIR}/build/binc/")
+  set(BLUEZ_INCLUDE_DIR "bluez_inc/")
   set(BLUEZ_LINK_LIBRARIES "Binc;m;${GLIB_LIBRARIES};") # libbluetooth-internal.a
   set(HAP_LINUX_BLUETOOTH_EXT "cpp")
 else()
