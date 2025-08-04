@@ -13,6 +13,8 @@
 #include <string>
 #include <memory>
 #include <thread>
+#include <sstream>
+#include <iomanip>
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -75,15 +77,17 @@ void  run_main_loop(void* _Nullable context, size_t contextSize) {
     g_main_context_iteration(d->main_context, FALSE);
 }
 
-void hexdump(const void* b, size_t len) {
+std::string hexdump(const void* b, std::size_t length)
+{
   const uint8_t* d = reinterpret_cast<const uint8_t*>(b);
-  char buffer[1024] = { 0 };
-  char* buff_ptr = buffer;
-  for (size_t i = 0; i < len ; i++) {
-    int val = d[i];
-    buff_ptr += snprintf(buff_ptr,(&buffer[1024] - buff_ptr), "0x%02x,", val);
+  std::stringstream ss;
+  for (std::size_t i = 0; i < length; i++)
+  {
+    ss << "" << std::setfill('0') << std::setw(2) << std::hex << int{ d[i] } << " ";
   }
-  HAPLogInfo(&logObject, "hdump %s", buffer);
+  const auto z = ss.str();
+  HAPLogInfo(&logObject, "hdump %s", z.c_str());
+  return z;
 }
 
 
@@ -263,7 +267,8 @@ const char *on_local_char_read(const Application *application, const char *addre
             kHAPPlatformBLEPeripheralManager_MaxAttributeBytes,
             &len,
             c->delegate.context);
-    if (err) {
+    HAPLogError(&logObject, "handleReadRequest returned %d, len is now: %zu", err, len);
+    if (err != kHAPError_None ) {
         HAPAssert(err == kHAPError_InvalidState || err == kHAPError_OutOfResources);
         return BLUEZ_ERROR_REJECTED;
     }
@@ -310,12 +315,12 @@ const char *on_local_char_write(const Application *application, const char *addr
             bytes,
             len,
             c->delegate.context);
+    HAPLogError(&logObject, "handleReadRequest returned %d, len was: %zu", err, len);
     if (err) {
         HAPAssert(err == kHAPError_InvalidState || err == kHAPError_OutOfResources);
         return BLUEZ_ERROR_REJECTED;
-    } else {
-      return NULL;
     }
+
 
     // Nothing to do here.
     return NULL;
@@ -332,18 +337,14 @@ void on_local_char_updated(const Application *application, const char *service_u
 
 void on_local_char_start_notify(const Application *application, const char *service_uuid, const char *char_uuid) {
     HAPLogInfo(&logObject, "on start notify char %s, %s", service_uuid, char_uuid);
-    /*if (g_str_equal(service_uuid, HTS_SERVICE_UUID) && g_str_equal(char_uuid, TEMPERATURE_CHAR_UUID)) {
-        const guint8 bytes[] = {0x06, 0x6A, 0x01, 0x00, 0xff, 0xe6, 0x07, 0x03, 0x03, 0x10, 0x04, 0x00, 0x01};
-        GByteArray *byteArray = g_byte_array_sized_new(sizeof(bytes));
-        g_byte_array_append(byteArray, bytes, sizeof(bytes));
-        binc_application_notify(application, service_uuid, char_uuid, byteArray);
-        g_byte_array_free(byteArray, TRUE);
-    }*/
-    HAPAssert(false);
+    OurBLEContainer* c = reinterpret_cast<OurBLEContainer*>(binc_application_get_user_data(application));
+    binc_device_start_notify(c->device, service_uuid, char_uuid);
 }
 
 void on_local_char_stop_notify(const Application *application, const char *service_uuid, const char *char_uuid) {
-    HAPLogInfo(&logObject, "on stop notify");
+    HAPLogInfo(&logObject, "on stop notify char %s, %s", service_uuid, char_uuid);
+    OurBLEContainer* c = reinterpret_cast<OurBLEContainer*>(binc_application_get_user_data(application));
+    binc_device_stop_notify(c->device, service_uuid, char_uuid);
 }
 
 gboolean on_request_authorization(Device *device) {
@@ -657,6 +658,7 @@ void HAPPlatformBLEPeripheralManagerSetDeviceAddress(
     HAPLog(&logObject, __func__);
 
     hexdump(deviceAddress, 6);
+
 
     uint8_t address_with_colons[sizeof("AA:BB:CC:DD:EE:FF") ] = "AA:BB:CC:DD:EE:FF";
     for (uint8_t bindex = 0; bindex < 6; bindex++){

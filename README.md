@@ -35,6 +35,17 @@ Added a method to bluez_inc for this now.
 
 Switched to https://github.com/weliem/bluez_inc for the bluetooth handling.
 
+## How to
+Okay, so this is all super flaky, the Home app has a tendency to disconnect from the peripheral, I'm not sure why.
+Best steps seem to be:
+1. Restart the bluetooth service on PC
+2. Clear `.HomeKitStore` and reprovision, this ensures the iPhone doesn't consider it an 'already forgotten' device.
+3. Open homekit to 'see' the device
+4. Swap to the NRF connect application to connect to the device.
+5. Perform the pairing in homekit, if this fails, go back to 4.
+
+
+
 ### Compiling
 ```
 ./apply_patch_ble.sh
