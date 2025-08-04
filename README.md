@@ -25,8 +25,8 @@ Next, the device should show up for pairing in the Home app on an iOS device.
 
 ## Bluetooth
 
-~Okay, this is a bit of a stretch and not working yet.~ This is working-ish, it's very flaky. But good enough to capture the
-packet contents of a comissioning procedure.
+~Okay, this is a bit of a stretch and not working yet.~ This is working-ish, it's very flaky (comission flaky, not code-flaky). But good enough to capture the packet contents of a comissioning procedure. Maybe it's flaky because we can't set the device address at
+the moment?
 
 This requires some further changes, the upstream PAL does not support bluetooth. So to achieve this we need to add bluetooth
 handling. We use [bluez_inc](https://github.com/weliem/bluez_inc) to get a nice C api to create our bluetooth peripheral over
@@ -57,8 +57,8 @@ Added a method to bluez_inc for this now.
 ## How to
 Okay, so this is all super flaky, the Home app has a tendency to disconnect from the peripheral, I'm not sure why.
 Best steps seem to be:
-1. Restart the bluetooth service on PC
+1. ~Restart the bluetooth service on PC~ Doesn't seem to matter much.
 2. Clear `.HomeKitStore` and reprovision, this ensures the iPhone doesn't consider it an 'already forgotten' device.
-3. Open homekit to 'see' the device
+3. Open homekit to 'see' the device, try to pair.
 4. Swap to the NRF connect application to connect to the device.
 5. Perform the pairing in homekit, if this fails, go back to 4.
