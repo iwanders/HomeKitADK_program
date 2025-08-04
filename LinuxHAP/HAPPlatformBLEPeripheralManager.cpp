@@ -579,7 +579,7 @@ HAPError HAPPlatformBLEPeripheralManagerAddCharacteristic(
 
     c->service();
 
-    struct RawUUID b = fromBytes((uint8_t*)type);
+    struct RawUUID b = fromBytes(type->bytes);
     c->recent_characteristic = b;
     guint permissions = makePermission(properties);
     int res = binc_application_add_characteristic(c->app, recent_service,
@@ -597,6 +597,11 @@ HAPError HAPPlatformBLEPeripheralManagerAddCharacteristic(
       c->characteristic_values[key] = data;
 
     }
+
+    //valueHandle
+    //guint16 v = binc_application_get_characteristic_handle(c->app, recent_service,b.str);
+
+    //HAPLogInfo(&logObject, "Characteristic handle: %u ", v);
 
     c->service();
     return kHAPError_None;
