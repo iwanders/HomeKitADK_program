@@ -301,6 +301,7 @@ const char *on_local_char_write(const Application *application, const char *addr
     size_t len = byteArray->len;
     // Copy from the gbyte array into our buffer.
     memcpy(bytes, byteArray->data, len);
+    hexdump(byteArray->data, byteArray->len);
 
     HAPError err = c->delegate.handleWriteRequest(
             c->manager,
@@ -424,6 +425,7 @@ const char *on_local_desc_write(const Application *application, const char *addr
 
    std::string key_str = key;
    HAPLogError(&logObject, "Writing to desc  %s with %p", key_str.c_str(), c);
+   hexdump(byteArray->data, byteArray->len);
 
    const auto handle_it = c->descriptor_handles.find(key);
    HAPAssert(handle_it != c->descriptor_handles.end());
@@ -817,6 +819,9 @@ HAPError HAPPlatformBLEPeripheralManagerAddCharacteristic(
     c->handle_counter++;
     c->characteristic_handles[key] = c->handle_counter;
     *valueHandle = c->handle_counter;
+    if (properties.notify || properties.indicate) {
+      *cccDescriptorHandle = c->handle_counter;
+    }
 
 
     return kHAPError_None;
