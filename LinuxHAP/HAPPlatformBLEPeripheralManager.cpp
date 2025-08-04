@@ -4,6 +4,9 @@
 // you may not use this file except in compliance with the License.
 // See [CONTRIBUTORS.md] for the list of HomeKit ADK project authors.
 
+#include "HAPPlatformBLEPeripheralManager.h"
+#include "HAPAssert.h"
+#include "binc/characteristic.h"
 #include <map>
 #include <vector>
 #include <string>
@@ -148,10 +151,15 @@ void on_powered_state_changed(Adapter *adapter, gboolean state) {
     OurBLEContainer* c = reinterpret_cast<OurBLEContainer*>(binc_adapter_get_user_data(adapter));
     HAPLogInfo(&logObject, "powered '%s' (%s)", state ? "on" : "off", binc_adapter_get_path(adapter));
     // HAPLogInfo(&logObject, "%s%s", prefix, str);
+    //
+    //
+    HAPLogInfo(&logObject, "remote central %s is %s", binc_device_get_address(c->device),
+      binc_device_get_connection_state_name(c->device));
 }
 
 void on_central_state_changed(Adapter *adapter, Device *device) {
   OurBLEContainer* c = reinterpret_cast<OurBLEContainer*>(binc_adapter_get_user_data(adapter));
+
 
     if (c->device == NULL) {
       c->device = device;
@@ -180,8 +188,8 @@ const char *on_local_char_read(const Application *application, const char *addre
 
     CharacteristicId key = CharacteristicId::service_characteristic(service_uuid, char_uuid);
     std::string key_str = key;
-    HAPLogInfo(&logObject, "Reading %s", key_str.c_str());
-
+    HAPLogError(&logObject, "Reading %s", key_str.c_str());
+    HAPAssert(false);
 
     /*
     if (g_str_equal(service_uuid, HTS_SERVICE_UUID) && g_str_equal(char_uuid, TEMPERATURE_CHAR_UUID)) {
@@ -199,9 +207,10 @@ const char *on_local_char_read(const Application *application, const char *addre
 const char *on_local_char_write(const Application *application, const char *address, const char *service_uuid,
                           const char *char_uuid, GByteArray *byteArray) {
     GString *result = g_byte_array_as_hex(byteArray);
-    HAPLogInfo(&logObject, "write request characteristic <%s> with value <%s>", char_uuid, result->str);
+    HAPLogError(&logObject, "write request characteristic <%s> with value <%s>", char_uuid, result->str);
     g_string_free(result, TRUE);
 
+    HAPAssert(false);
     return NULL;
 }
 
@@ -209,8 +218,9 @@ const char *on_local_char_write(const Application *application, const char *addr
 void on_local_char_updated(const Application *application, const char *service_uuid,
                            const char *char_uuid, GByteArray *byteArray) {
     GString *result = g_byte_array_as_hex(byteArray);
-    HAPLogInfo(&logObject, "characteristic <%s> updated to <%s>", char_uuid, result->str);
+    HAPLogError(&logObject, "characteristic <%s> updated to <%s>", char_uuid, result->str);
     g_string_free(result, TRUE);
+    HAPAssert(false);
 }
 
 void on_local_char_start_notify(const Application *application, const char *service_uuid, const char *char_uuid) {
@@ -222,6 +232,7 @@ void on_local_char_start_notify(const Application *application, const char *serv
         binc_application_notify(application, service_uuid, char_uuid, byteArray);
         g_byte_array_free(byteArray, TRUE);
     }*/
+    HAPAssert(false);
 }
 
 void on_local_char_stop_notify(const Application *application, const char *service_uuid, const char *char_uuid) {
@@ -234,6 +245,7 @@ gboolean on_request_authorization(Device *device) {
 }
 
 guint32 on_request_passkey(Device *device) {
+  HAPLogError(&logObject, "on_request_passkey");
     guint32 pass = 000000;
     HAPLogInfo(&logObject, "requesting passkey for '%s", binc_device_get_name(device));
     HAPLogInfo(&logObject, "Enter 6 digit pin code: ");
@@ -290,6 +302,7 @@ void HAPPlatformBLEPeripheralManagerCreate(
 
 
 
+
     // Get a DBus connection
      c->dbusConnection = g_bus_get_sync(G_BUS_TYPE_SYSTEM, NULL, NULL);
 
@@ -303,13 +316,22 @@ void HAPPlatformBLEPeripheralManagerCreate(
      // Get the default default_adapter
      c->default_adapter = binc_adapter_get_default(c->dbusConnection);
 
+
      // Set our default adapter.
      binc_adapter_set_user_data(c->default_adapter, &c);
+
+
 
      Adapter *default_adapter = c->default_adapter;
 
      if (default_adapter != NULL) {
          HAPLogInfo(&logObject, "using default_adapter '%s'", binc_adapter_get_path(default_adapter));
+
+         c->service();
+         binc_adapter_pairable_off(c->default_adapter);
+         c->service();
+         binc_adapter_discoverable_on(c->default_adapter);
+         c->service();
 
          // Make sure the adapter is on
          binc_adapter_set_powered_state_cb(default_adapter, &on_powered_state_changed);
@@ -319,8 +341,8 @@ void HAPPlatformBLEPeripheralManagerCreate(
 
          // Register an agent and set callbacks
          c->agent = binc_agent_create(default_adapter, "/org/bluez/BincAgent", KEYBOARD_DISPLAY);
-         binc_agent_set_request_authorization_cb(c->agent, &on_request_authorization);
-         binc_agent_set_request_passkey_cb(c->agent, &on_request_passkey);
+         //binc_agent_set_request_authorization_cb(c->agent, &on_request_authorization);
+         //binc_agent_set_request_passkey_cb(c->agent, &on_request_passkey);
 
          // Setup remote central connection state callback
          binc_adapter_set_remote_central_cb(default_adapter, &on_central_state_changed);
@@ -408,6 +430,7 @@ void HAPPlatformBLEPeripheralManagerSetDelegate(
     HAPPrecondition(blePeripheralManager_);
 
 
+    HAPLog(&logObject, __func__);
 }
 
 
@@ -477,6 +500,7 @@ HAPError HAPPlatformBLEPeripheralManagerAddService(
     HAPLog(&logObject, __func__);
 
     OurBLEContainer* c = blePeripheralManager->container;
+    c->service();
 
     struct RawUUID b = fromBytes((uint8_t*)type);
     c->recent_service = b;
@@ -510,6 +534,18 @@ static guint makePermission(HAPPlatformBLEPeripheralManagerCharacteristicPropert
   if (properties.indicate)
       prop |= GATT_CHR_PROP_INDICATE;
 
+
+  return prop;
+}
+static guint makePermissionDescr(HAPPlatformBLEPeripheralManagerDescriptorProperties properties) {
+  guint prop = 0;
+
+  if (properties.read)
+      prop |= GATT_CHR_PROP_READ;
+  if (properties.write)
+      prop |= GATT_CHR_PROP_WRITE;
+
+
   return prop;
 }
 
@@ -534,18 +570,22 @@ HAPError HAPPlatformBLEPeripheralManagerAddCharacteristic(
 
     HAPLog(&logObject, __func__);
     OurBLEContainer* c = blePeripheralManager->container;
+    c->service();
 
     const char* recent_service = c->recent_service.str;
 
     HAPLogInfo(&logObject, "add characteristic, const bytes: %lu ", constNumBytes);
     hexdump(type->bytes, 16);
 
+    c->service();
 
     struct RawUUID b = fromBytes((uint8_t*)type);
     c->recent_characteristic = b;
     guint permissions = makePermission(properties);
     int res = binc_application_add_characteristic(c->app, recent_service,
                                             b.str, permissions);
+    HAPAssert(res == 0);
+    c->service();
     if (constNumBytes != 0) {
       HAPLogError(&logObject, "Have const data that needs handling.");
       CharacteristicId key;
@@ -579,6 +619,7 @@ HAPError HAPPlatformBLEPeripheralManagerAddDescriptor(
 
 
     OurBLEContainer* c = blePeripheralManager->container;
+    c->service();
 
     const char* recent_service = c->recent_service.str;
     const char* recent_characteristic = c->recent_characteristic.str;
@@ -587,26 +628,31 @@ HAPError HAPPlatformBLEPeripheralManagerAddDescriptor(
     hexdump(type->bytes, 16);
 
 
+    c->service();
     struct RawUUID b = fromBytes((uint8_t*)type);
-    //guint permissions = makePermission(properties);
+    guint permissions = makePermissionDescr(properties);
 
 
-    binc_application_add_descriptor(
+    c->service();
+    int res = binc_application_add_descriptor(
             c->app,
             recent_service,
             recent_characteristic,
             b.str,
-            GATT_CHR_PROP_READ | GATT_CHR_PROP_WRITE);
+            permissions);
+    HAPAssert(res == 0);
 
+    c->service();
     if (constNumBytes != 0) {
       HAPLogInfo(&logObject, "Setting const data for descriptor: %s", std::string(b).c_str());
       hexdump(constBytes, constNumBytes);
       GByteArray *cudArray = g_byte_array_sized_new(constNumBytes);
       g_byte_array_append(cudArray, reinterpret_cast<const unsigned char*>(constBytes), constNumBytes);
-      binc_application_set_desc_value(c->app,
+      res = binc_application_set_desc_value(c->app,
         recent_service,
         recent_characteristic,
         b.str, cudArray);
+      HAPAssert(res == 0);
       g_byte_array_free(cudArray, true);
     }
 
@@ -619,6 +665,23 @@ void HAPPlatformBLEPeripheralManagerPublishServices(HAPPlatformBLEPeripheralMana
     HAPPrecondition(blePeripheralManager);
 
     HAPLog(&logObject, __func__);
+
+
+    OurBLEContainer* c = blePeripheralManager->container;
+    if (!c->started_main_loop) {
+      LoopRunContext ctx;
+      ctx.main_loop = 0;
+      ctx.main_context = g_main_loop_get_context(c->loop);
+      c->service_pusher = std::thread([ctx](){
+        while (true) {
+        LoopRunContext copied = ctx;
+        int r = HAPPlatformRunLoopScheduleCallback(run_main_loop, &copied, sizeof(ctx));
+        HAPAssert(r == kHAPError_None);
+        usleep(1000);
+        }
+      });
+      c->started_main_loop = true;
+    }
 
 
 
@@ -645,21 +708,6 @@ void HAPPlatformBLEPeripheralManagerStartAdvertising(
     hexdump(advertisingBytes, numAdvertisingBytes);
 
 
-    if (!c->started_main_loop) {
-     LoopRunContext ctx;
-     ctx.main_context = g_main_loop_get_context(c->loop);
-     c->service_pusher = std::thread([ctx](){
-       while (true) {
-        LoopRunContext copied = ctx;
-        int r = HAPPlatformRunLoopScheduleCallback(run_main_loop, &copied, sizeof(ctx));
-        HAPAssert(r == kHAPError_None);
-        usleep(1000);
-       }
-     });
-     c->started_main_loop = true;
-    }
-
-
     // Data contains too much, so we need to trim the first 7 bytes...
     // 0x02,0x01,0x06,0x16,0xff,0x4c,0x00,    0x06,0x31
     //
@@ -673,18 +721,27 @@ void HAPPlatformBLEPeripheralManagerStartAdvertising(
     g_byte_array_set_size(z, numAdvertisingBytes);
     memcpy(z->data, actual_data, numAdvertisingBytes);
     hexdump(actual_data, numAdvertisingBytes);
-    HAPLogInfo(&logObject, "advertising bytes: %u ", numAdvertisingBytes);
+    HAPLogInfo(&logObject, "advertising bytes: %zu ", numAdvertisingBytes);
 
 
     c->advertisement = binc_advertisement_create();
     binc_advertisement_set_general_discoverable(c->advertisement, true);
 
+    binc_advertisement_set_local_name(c->advertisement, "BINC");
     uint16_t COMPANY_IDENTIFIER_CODE =  0x004c;
     binc_advertisement_set_manufacturer_data(c->advertisement,COMPANY_IDENTIFIER_CODE,z);
     g_byte_array_free(z, true);
 
 
+    int before = binc_adapter_is_pairable(c->default_adapter);
+    //HAPLogFault(&logObject, "pairable before %d", before);
+
+    binc_adapter_pairable_off(c->default_adapter);
+    c->service();
     binc_adapter_start_advertising(c->default_adapter, c->advertisement);
+    c->service();
+    before = binc_adapter_is_pairable(c->default_adapter);
+    //HAPLogFault(&logObject, "pairable before %d", before);
 }
 
 void HAPPlatformBLEPeripheralManagerStopAdvertising(HAPPlatformBLEPeripheralManagerRef blePeripheralManager) {

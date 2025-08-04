@@ -22,6 +22,17 @@ Next, the device should show up for pairing in the Home app on an iOS device.
 
 Okay, this is a bit of a stretch and not working yet.
 
+We always get pairing... https://github.com/spacecheese/bluez_peripheral/pull/43/files allows for connecting without pairing.
+
+
+https://github.com/bluez/bluez/issues/851
+
+Disable pairable with
+```
+busctl set-property org.bluez /org/bluez/hci0 org.bluez.Adapter1 Pairable 'b' 0
+```
+
+
 ### Building BLuez
 The `shared/gatt-db.h` headers are considered internal and not available by just using the `-dev` package.
 
