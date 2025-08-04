@@ -31,28 +31,10 @@ Disable pairable with
 ```
 busctl set-property org.bluez /org/bluez/hci0 org.bluez.Adapter1 Pairable 'b' 0
 ```
+Added a method to bluez_inc for this now.
 
+Switched to https://github.com/weliem/bluez_inc for the bluetooth handling.
 
-### Building BLuez
-The `shared/gatt-db.h` headers are considered internal and not available by just using the `-dev` package.
-
-Get the source code from https://github.com/bluez/bluez checkout a version close to the one you are running, `5.66`.
-
-```
-apt install autotools-dev automake libtool libjson-c-dev libical-dev libreadline-dev python3-docutils libsbc-dev libspeexdsp-dev libell-dev
-```
-
-```
-./bootstrap-configure --enable-external-ell --enable-static  --enable-library  --disable-asan --disable-lsan --disable-ubsan
-make -j30
-# Move relevant stuff
-make install DESTDIR=$PWD/x
-# Copy static libraries to destination.
-cp ./lib/.libs/* ./x/usr/lib/
-cp ./src/.libs/* ./x/usr/lib/
-# Clean up intermediate build artifacts
-make clean
-```
 ### Compiling
 ```
 ./apply_patch_ble.sh

@@ -34,7 +34,7 @@ extern "C" {
 #include <signal.h>
 #include "binc/adapter.h"
 #include "binc/device.h"
-//#include "binc/device_internal.h"
+
 #include "binc/logger.h"
 #include "binc/agent.h"
 #include "binc/application.h"
@@ -119,6 +119,31 @@ struct CharacteristicId {
   }
 };
 
+struct DescriptorId {
+  CharacteristicId characteristic;
+  RawUUID descriptor;
+
+  // Overload the equality operator (==)
+  bool operator==(const DescriptorId& other) const {
+      return std::make_pair(characteristic, descriptor) == std::make_pair(other.characteristic, other.descriptor);
+  }
+
+  // Overload the less than operator (<)
+  bool operator<(const DescriptorId& other) const {
+    return std::make_pair(characteristic, descriptor) < std::make_pair(other.characteristic, other.descriptor);
+
+  }
+  static DescriptorId characteristic_descriptor(const CharacteristicId& characteristic_id, const char* descriptor_uuid) {
+    DescriptorId res;
+    res.characteristic = characteristic_id;
+    res.descriptor.load(descriptor_uuid);
+    return res;
+  }
+  operator std::string() const {
+    return std::string(characteristic) + ":" + std::string(descriptor);
+  }
+};
+
 
 typedef struct OurBLEContainer {
 
@@ -142,6 +167,11 @@ typedef struct OurBLEContainer {
   void service(){
     g_main_context_iteration(g_main_loop_get_context(loop), FALSE);
   }
+
+  uint16_t handle_counter{0};
+
+  std::map<CharacteristicId, uint16_t> characteristic_handles;
+  std::map<DescriptorId, uint16_t> descriptor_handles;
 
 } OurBLEContainer;
 
@@ -177,6 +207,7 @@ void on_central_state_changed(Adapter *adapter, Device *device) {
     } else if (state == BINC_DISCONNECTED){
         binc_adapter_start_advertising(adapter, c->advertisement);
     }*/
+
 }
 
 // This function is called when a read is done
@@ -586,22 +617,26 @@ HAPError HAPPlatformBLEPeripheralManagerAddCharacteristic(
                                             b.str, permissions);
     HAPAssert(res == 0);
     c->service();
+    c->service();
+    CharacteristicId key;
+    key.service = c->recent_service;
+    key.characteristic = b;
     if (constNumBytes != 0) {
       HAPLogError(&logObject, "Have const data that needs handling.");
-      CharacteristicId key;
-      key.service = c->recent_service;
-      key.characteristic = b;
       std::vector<uint8_t> data;
       data.resize(constNumBytes);
       memcpy(data.data(), constBytes, constNumBytes);
       c->characteristic_values[key] = data;
 
+      c->service();
     }
 
-    //valueHandle
-    //guint16 v = binc_application_get_characteristic_handle(c->app, recent_service,b.str);
+    c->service();
 
-    //HAPLogInfo(&logObject, "Characteristic handle: %u ", v);
+    // Good enough for now?
+    c->handle_counter++;
+    c->characteristic_handles[key] = c->handle_counter;
+    *valueHandle = c->handle_counter;
 
     c->service();
     return kHAPError_None;
@@ -629,14 +664,18 @@ HAPError HAPPlatformBLEPeripheralManagerAddDescriptor(
     const char* recent_service = c->recent_service.str;
     const char* recent_characteristic = c->recent_characteristic.str;
 
-    HAPLogInfo(&logObject, "add characteristic, const bytes: %lu ", constNumBytes);
+    HAPLogInfo(&logObject, "add characteristic, const bytes: %zu ", constNumBytes);
     hexdump(type->bytes, 16);
 
 
     c->service();
-    struct RawUUID b = fromBytes((uint8_t*)type);
+    struct RawUUID b = fromBytes(type->bytes);
     guint permissions = makePermissionDescr(properties);
 
+    CharacteristicId char_key;
+    char_key.service = c->recent_service;
+    char_key.characteristic = c->recent_characteristic;
+    DescriptorId key = DescriptorId::characteristic_descriptor(char_key, b.str);
 
     c->service();
     int res = binc_application_add_descriptor(
@@ -660,6 +699,11 @@ HAPError HAPPlatformBLEPeripheralManagerAddDescriptor(
       HAPAssert(res == 0);
       g_byte_array_free(cudArray, true);
     }
+
+    // Good enough for now?
+    c->handle_counter++;
+    c->descriptor_handles[key] = c->handle_counter;
+    *descriptorHandle = c->handle_counter;
 
 
     c->service();
@@ -708,7 +752,7 @@ void HAPPlatformBLEPeripheralManagerStartAdvertising(
 
     OurBLEContainer* c = blePeripheralManager->container;
     HAPLog(&logObject, __func__);
-    HAPLogInfo(&logObject, "advertising bytes: %u ", numAdvertisingBytes);
+    HAPLogInfo(&logObject, "advertising bytes: %zu ", numAdvertisingBytes);
 
     hexdump(advertisingBytes, numAdvertisingBytes);
 
