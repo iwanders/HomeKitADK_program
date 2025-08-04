@@ -75,6 +75,17 @@ void  run_main_loop(void* _Nullable context, size_t contextSize) {
     g_main_context_iteration(d->main_context, FALSE);
 }
 
+void hexdump(const void* b, size_t len) {
+  const uint8_t* d = reinterpret_cast<const uint8_t*>(b);
+  char buffer[1024] = { 0 };
+  char* buff_ptr = buffer;
+  for (size_t i = 0; i < len ; i++) {
+    int val = d[i];
+    buff_ptr += snprintf(buff_ptr,(&buffer[1024] - buff_ptr), "0x%02x,", val);
+  }
+  HAPLogInfo(&logObject, "hdump %s", buffer);
+}
+
 
 struct RawUUID{
   char str[37] = { 0 };
@@ -164,6 +175,7 @@ typedef struct OurBLEContainer {
   std::map<CharacteristicId, std::vector<uint8_t>> characteristic_values;
 
   bool started_main_loop{false};
+  bool registered_application{false};
 
   std::thread service_pusher;
 
@@ -171,9 +183,9 @@ typedef struct OurBLEContainer {
     g_main_context_iteration(g_main_loop_get_context(loop), FALSE);
   }
 
-  uint16_t handle_counter{0};
-
-  uint16_t connection_handle{0};
+  // There's an assert that checks if these handles and counters are zero.
+  uint16_t handle_counter{1};
+  uint16_t connection_handle{1};
 
   std::map<CharacteristicId, uint16_t> characteristic_handles;
   std::map<DescriptorId, uint16_t> descriptor_handles;
@@ -215,6 +227,7 @@ void on_central_state_changed(Adapter *adapter, Device *device) {
         if (c->delegate.handleConnectedCentral) {
           (*(c->delegate.handleConnectedCentral))(c->manager, c->connection_handle, c->delegate.context);
         }
+        binc_adapter_stop_advertising(c->default_adapter, c->advertisement);
     } else if (state == BINC_DISCONNECTED){
         if (c->delegate.handleDisconnectedCentral) {
           (*(c->delegate.handleDisconnectedCentral))(c->manager, c->connection_handle, c->delegate.context);
@@ -253,9 +266,8 @@ const char *on_local_char_read(const Application *application, const char *addre
     if (err) {
         HAPAssert(err == kHAPError_InvalidState || err == kHAPError_OutOfResources);
         return BLUEZ_ERROR_REJECTED;
-    } else {
-      return NULL;
     }
+    hexdump(bytes, len);
 
     // Okay, so now we have 'len' bytes in 'bytes' that we need to populate the characteristic with.
     GByteArray *byteArray = g_byte_array_sized_new(len);
@@ -314,11 +326,11 @@ void on_local_char_updated(const Application *application, const char *service_u
     GString *result = g_byte_array_as_hex(byteArray);
     HAPLogError(&logObject, "characteristic <%s> updated to <%s>", char_uuid, result->str);
     g_string_free(result, TRUE);
-    HAPAssert(false);
+//    HAPAssert(false);
 }
 
 void on_local_char_start_notify(const Application *application, const char *service_uuid, const char *char_uuid) {
-    HAPLogInfo(&logObject, "on start notify");
+    HAPLogInfo(&logObject, "on start notify char %s, %s", service_uuid, char_uuid);
     /*if (g_str_equal(service_uuid, HTS_SERVICE_UUID) && g_str_equal(char_uuid, TEMPERATURE_CHAR_UUID)) {
         const guint8 bytes[] = {0x06, 0x6A, 0x01, 0x00, 0xff, 0xe6, 0x07, 0x03, 0x03, 0x10, 0x04, 0x00, 0x01};
         GByteArray *byteArray = g_byte_array_sized_new(sizeof(bytes));
@@ -351,23 +363,104 @@ guint32 on_request_passkey(Device *device) {
 }
 
 
+// This callback is called just before the descriptor's value is returned.
+// Use it to update the descriptor before it is read
+const char* on_local_desc_read(const Application *application, const char *address,
+                                          const char *service_uuid, const char *char_uuid, const char *desc_uuid){
+  OurBLEContainer* c = reinterpret_cast<OurBLEContainer*>(binc_application_get_user_data(application));
+
+  CharacteristicId char_key = CharacteristicId::service_characteristic(service_uuid, char_uuid);
+  DescriptorId key = DescriptorId::characteristic_descriptor(char_key, desc_uuid);
+
+  std::string key_str = key;
+  HAPLogError(&logObject, "Reading %s", key_str.c_str(), c);
+
+  const auto handle_it = c->descriptor_handles.find(key);
+  HAPAssert(handle_it != c->descriptor_handles.end());
+
+  const auto handle_id = handle_it->second;
+
+  uint8_t bytes[kHAPPlatformBLEPeripheralManager_MaxAttributeBytes] = { 0 };
+  size_t len = 0;
+
+  HAPError err = c->delegate.handleReadRequest(
+          c->manager,
+          c->connection_handle,
+          handle_id,
+          bytes,
+          kHAPPlatformBLEPeripheralManager_MaxAttributeBytes,
+          &len,
+          c->delegate.context);
+  if (err) {
+      HAPAssert(err == kHAPError_InvalidState || err == kHAPError_OutOfResources);
+      return BLUEZ_ERROR_REJECTED;
+  }
+  hexdump(bytes, len);
+
+  // Okay, so now we have 'len' bytes in 'bytes' that we need to populate the descriptor with.
+  GByteArray *byteArray = g_byte_array_sized_new(len);
+  g_byte_array_append(byteArray, bytes, len);
+  binc_application_set_desc_value(application, service_uuid, char_uuid, desc_uuid, byteArray);
+  g_byte_array_free(byteArray, TRUE);
+
+  return NULL;
+}
+
+// This callback is called just before the descriptor's value is set.
+// Use it to accept (return NULL), or reject (return BLUEZ_ERROR_*) the byte array
+const char *on_local_desc_write(const Application *application, const char *address,
+                                            const char *service_uuid, const char *char_uuid,
+                                            const char *desc_uuid, const GByteArray *byteArray){
+
+   GString *result = g_byte_array_as_hex(byteArray);
+   HAPLogError(&logObject, "write request characteristic <%s> with value <%s>", char_uuid, result->str);
+   g_string_free(result, TRUE);
+
+   OurBLEContainer* c = reinterpret_cast<OurBLEContainer*>(binc_application_get_user_data(application));
+
+  CharacteristicId char_key = CharacteristicId::service_characteristic(service_uuid, char_uuid);
+  DescriptorId key = DescriptorId::characteristic_descriptor(char_key, desc_uuid);
+
+
+   std::string key_str = key;
+   HAPLogError(&logObject, "Writing to desc  %s with %p", key_str.c_str(), c);
+
+   const auto handle_it = c->descriptor_handles.find(key);
+   HAPAssert(handle_it != c->descriptor_handles.end());
+
+   const auto handle_id = handle_it->second;
+
+   uint8_t bytes[kHAPPlatformBLEPeripheralManager_MaxAttributeBytes] = { 0 };
+   size_t len = byteArray->len;
+   // Copy from the gbyte array into our buffer.
+   memcpy(bytes, byteArray->data, len);
+
+   HAPError err = c->delegate.handleWriteRequest(
+           c->manager,
+           c->connection_handle,
+           handle_id,
+           bytes,
+           len,
+           c->delegate.context);
+   if (err) {
+       HAPAssert(err == kHAPError_InvalidState || err == kHAPError_OutOfResources);
+       return BLUEZ_ERROR_REJECTED;
+   } else {
+     return NULL;
+   }
+
+   // Nothing to do here.
+   return NULL;
+}
+
+
+
 static void print_debug(const char *str, void *user_data)
 {
 	const char *prefix = reinterpret_cast<const char*>(str);
 
 
 	HAPLogInfo(&logObject, "%s%s", prefix, str);
-}
-
-void hexdump(const void* b, size_t len) {
-  const uint8_t* d = reinterpret_cast<const uint8_t*>(b);
-  char buffer[1024] = { 0 };
-  char* buff_ptr = buffer;
-  for (size_t i = 0; i < len ; i++) {
-    int val = d[i];
-    buff_ptr += snprintf(buff_ptr,(&buffer[1024] - buff_ptr), "0x%02x,", val);
-  }
-  HAPLogInfo(&logObject, "hdump %s", buffer);
 }
 
 static struct RawUUID fromBytes(const uint8_t* uuid) {
@@ -491,6 +584,12 @@ void HAPPlatformBLEPeripheralManagerCreate(
          binc_application_set_char_start_notify_cb(c->app, &on_local_char_start_notify);
          binc_application_set_char_stop_notify_cb(c->app, &on_local_char_stop_notify);
          binc_application_set_char_updated_cb(c->app, &on_local_char_updated);
+
+
+         binc_application_set_desc_read_cb(c->app, on_local_desc_read);
+
+         binc_application_set_desc_write_cb(c->app, on_local_desc_write);
+
 
          //binc_adapter_register_application(default_adapter, c->app);
 
@@ -798,7 +897,10 @@ void HAPPlatformBLEPeripheralManagerPublishServices(HAPPlatformBLEPeripheralMana
     HAPLog(&logObject, __func__);
 
     // We're ready to roll, so lets start the application.
-    binc_adapter_register_application(c->default_adapter, c->app);
+    if (!c->registered_application){
+      binc_adapter_register_application(c->default_adapter, c->app);
+      c->registered_application = true;
+    }
 
 
     if (!c->started_main_loop) {
@@ -810,7 +912,7 @@ void HAPPlatformBLEPeripheralManagerPublishServices(HAPPlatformBLEPeripheralMana
         LoopRunContext copied = ctx;
         int r = HAPPlatformRunLoopScheduleCallback(run_main_loop, &copied, sizeof(ctx));
         HAPAssert(r == kHAPError_None);
-        usleep(1000);
+        usleep(10000);
         }
       });
       c->started_main_loop = true;
