@@ -196,7 +196,7 @@ void on_central_state_changed(Adapter *adapter, Device *device) {
     }
 
     char *deviceToString = binc_device_to_string(device);
-    HAPLogInfo(&logObject, deviceToString);
+    HAPLogInfo(&logObject,"%s\n", deviceToString);
     g_free(deviceToString);
 
     HAPLogInfo(&logObject, "remote central %s is %s", binc_device_get_address(device), binc_device_get_connection_state_name(device));
@@ -309,11 +309,19 @@ void hexdump(const void* b, size_t len) {
 
 static struct RawUUID fromBytes(const uint8_t* uuid) {
   RawUUID res;
+  /*
   snprintf(&res.str[0],sizeof(res.str),
   "%02x%02x%02x%02x-%02x%02x-%02x%02x-%02x%02x-%02x%02x%02x%02x%02x%02x",
       uuid[0], uuid[1], uuid[2], uuid[3], uuid[4], uuid[5], uuid[6], uuid[7],
       uuid[8], uuid[9], uuid[10], uuid[11], uuid[12], uuid[13], uuid[14], uuid[15]
   );
+  */
+  snprintf(&res.str[0],sizeof(res.str),
+  "%02x%02x%02x%02x-%02x%02x-%02x%02x-%02x%02x-%02x%02x%02x%02x%02x%02x",
+      uuid[15], uuid[14], uuid[13], uuid[12], uuid[11], uuid[10], uuid[9], uuid[8],
+      uuid[7], uuid[6], uuid[5], uuid[4], uuid[3], uuid[2], uuid[1], uuid[0]
+  );
+  HAPLogInfo(&logObject, "Created RawUUID: %s", std::string(res).c_str());
   return res;
 }
 
@@ -421,7 +429,7 @@ void HAPPlatformBLEPeripheralManagerCreate(
          binc_application_set_char_stop_notify_cb(c->app, &on_local_char_stop_notify);
          binc_application_set_char_updated_cb(c->app, &on_local_char_updated);
 
-         binc_adapter_register_application(default_adapter, c->app);
+         //binc_adapter_register_application(default_adapter, c->app);
 
 
          // Bail out after some time
@@ -533,13 +541,18 @@ HAPError HAPPlatformBLEPeripheralManagerAddService(
     OurBLEContainer* c = blePeripheralManager->container;
     c->service();
 
-    struct RawUUID b = fromBytes((uint8_t*)type);
+    // We cannot handle non primary services, so drop the ball if they are not primary.
+    HAPAssert(isPrimary);
+
+    struct RawUUID b = fromBytes(type->bytes);
     c->recent_service = b;
     hexdump(type->bytes, 16);
+    HAPLogInfo(&logObject, "l: %d ", __LINE__);
     int res = binc_application_add_service(c->app, b.str);
+    HAPLogInfo(&logObject, "l: %d ", __LINE__);
     HAPAssert(res == 0);
 
-    c->service();
+    //c->service();
     return kHAPError_None;
 }
 
@@ -547,6 +560,7 @@ void HAPPlatformBLEPeripheralManagerRemoveAllServices(HAPPlatformBLEPeripheralMa
     HAPPrecondition(blePeripheralManager);
 
     HAPLog(&logObject, __func__);
+
 
     //  [peripheral removeAllServices];
 }
@@ -601,23 +615,26 @@ HAPError HAPPlatformBLEPeripheralManagerAddCharacteristic(
 
     HAPLog(&logObject, __func__);
     OurBLEContainer* c = blePeripheralManager->container;
-    c->service();
+    HAPLogInfo(&logObject, "l: %d ", __LINE__);
 
     const char* recent_service = c->recent_service.str;
 
+    HAPLogInfo(&logObject, "l: %d ", __LINE__);
     HAPLogInfo(&logObject, "add characteristic, const bytes: %lu ", constNumBytes);
+    HAPLogInfo(&logObject, "l: %d ", __LINE__);
     hexdump(type->bytes, 16);
 
-    c->service();
+    HAPLogInfo(&logObject, "l: %d ", __LINE__);
 
     struct RawUUID b = fromBytes(type->bytes);
     c->recent_characteristic = b;
     guint permissions = makePermission(properties);
+    HAPLogInfo(&logObject, "l: %d ", __LINE__);
     int res = binc_application_add_characteristic(c->app, recent_service,
                                             b.str, permissions);
+    HAPLogInfo(&logObject, "l: %d ", __LINE__);
     HAPAssert(res == 0);
-    c->service();
-    c->service();
+    HAPLogInfo(&logObject, "l: %d ", __LINE__);
     CharacteristicId key;
     key.service = c->recent_service;
     key.characteristic = b;
@@ -628,17 +645,16 @@ HAPError HAPPlatformBLEPeripheralManagerAddCharacteristic(
       memcpy(data.data(), constBytes, constNumBytes);
       c->characteristic_values[key] = data;
 
-      c->service();
+
     }
 
-    c->service();
 
     // Good enough for now?
     c->handle_counter++;
     c->characteristic_handles[key] = c->handle_counter;
     *valueHandle = c->handle_counter;
 
-    c->service();
+
     return kHAPError_None;
 }
 
@@ -659,7 +675,7 @@ HAPError HAPPlatformBLEPeripheralManagerAddDescriptor(
 
 
     OurBLEContainer* c = blePeripheralManager->container;
-    c->service();
+
 
     const char* recent_service = c->recent_service.str;
     const char* recent_characteristic = c->recent_characteristic.str;
@@ -668,7 +684,7 @@ HAPError HAPPlatformBLEPeripheralManagerAddDescriptor(
     hexdump(type->bytes, 16);
 
 
-    c->service();
+
     struct RawUUID b = fromBytes(type->bytes);
     guint permissions = makePermissionDescr(properties);
 
@@ -677,7 +693,7 @@ HAPError HAPPlatformBLEPeripheralManagerAddDescriptor(
     char_key.characteristic = c->recent_characteristic;
     DescriptorId key = DescriptorId::characteristic_descriptor(char_key, b.str);
 
-    c->service();
+
     int res = binc_application_add_descriptor(
             c->app,
             recent_service,
@@ -686,7 +702,7 @@ HAPError HAPPlatformBLEPeripheralManagerAddDescriptor(
             permissions);
     HAPAssert(res == 0);
 
-    c->service();
+
     if (constNumBytes != 0) {
       HAPLogInfo(&logObject, "Setting const data for descriptor: %s", std::string(b).c_str());
       hexdump(constBytes, constNumBytes);
@@ -706,17 +722,20 @@ HAPError HAPPlatformBLEPeripheralManagerAddDescriptor(
     *descriptorHandle = c->handle_counter;
 
 
-    c->service();
+
     return kHAPError_None;
 }
 
 void HAPPlatformBLEPeripheralManagerPublishServices(HAPPlatformBLEPeripheralManagerRef blePeripheralManager) {
     HAPPrecondition(blePeripheralManager);
 
+    OurBLEContainer* c = blePeripheralManager->container;
     HAPLog(&logObject, __func__);
 
+    // We're ready to roll, so lets start the application.
+    binc_adapter_register_application(c->default_adapter, c->app);
 
-    OurBLEContainer* c = blePeripheralManager->container;
+
     if (!c->started_main_loop) {
       LoopRunContext ctx;
       ctx.main_loop = 0;
