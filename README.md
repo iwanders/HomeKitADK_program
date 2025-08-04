@@ -1,6 +1,11 @@
 # HomeKitADK Program
 
-This repo is a _very hacky_ repo to run the examples from the `HomeKitADK`.
+This repo is a _very hacky_ repo to run the examples from the `HomeKitADK`. Goal is to get a capture of packets of the
+reference implementation, nothing more.
+
+## Wifi
+
+This is mostly just works because the Linux PAL from upstream handles network.
 
 Upstream [apple/HomeKitADK](https://github.com/apple/HomeKitADK) needs some patches to run these days.
 
@@ -12,7 +17,7 @@ Upstream [apple/HomeKitADK](https://github.com/apple/HomeKitADK) needs some patc
 ```
 mkdir build
 cd build
-cmake -DCMAKE_BUILD_TYPE=Debug ../ && make && rm -f .HomeKitStore/* && ../provision.sh --ip --category 2  --setup-code 111-22-333
+rm -f .HomeKitStore/* && ../provision.sh --ip --category 2  --setup-code 111-22-333
 cmake -DCMAKE_BUILD_TYPE=Debug ../ && make && ./main
 ```
 
@@ -20,20 +25,34 @@ Next, the device should show up for pairing in the Home app on an iOS device.
 
 ## Bluetooth
 
-Okay, this is a bit of a stretch and not working yet.
+~Okay, this is a bit of a stretch and not working yet.~ This is working-ish, it's very flaky. But good enough to capture the
+packet contents of a comissioning procedure.
 
-We always get pairing... https://github.com/spacecheese/bluez_peripheral/pull/43/files allows for connecting without pairing.
+This requires some further changes, the upstream PAL does not support bluetooth. So to achieve this we need to add bluetooth
+handling. We use [bluez_inc](https://github.com/weliem/bluez_inc) to get a nice C api to create our bluetooth peripheral over
+dbus.
+
+Apply patches with the shell script, and build with the BLE option in the cmakelists.
+```
+./apply_patch_ble.sh
+reset; cmake -DCMAKE_BUILD_TYPE=Debug -DENABLE_BLE=YES ../ && VERBOSE=1 make && ./main_ble
+```
+
+Initially I always got a pairing procedure while connecting in the nRF Connect app, but a bluetooth example from
+[this repo](https://github.com/spacecheese/bluez_peripheral/pull/43) can be connected to without pairing, so we need
+to toggle that attribute on the adapter as homekit peripherals don't pair.
 
 
-https://github.com/bluez/bluez/issues/851
+I also toggled [ReverseServiceDiscovery](https://github.com/bluez/bluez/issues/851) to false, but I'm not sure if that's
+better or worse.
 
-Disable pairable with
+
+Originally, I tried disabling pairable with
 ```
 busctl set-property org.bluez /org/bluez/hci0 org.bluez.Adapter1 Pairable 'b' 0
 ```
 Added a method to bluez_inc for this now.
 
-Switched to https://github.com/weliem/bluez_inc for the bluetooth handling.
 
 ## How to
 Okay, so this is all super flaky, the Home app has a tendency to disconnect from the peripheral, I'm not sure why.
@@ -43,11 +62,3 @@ Best steps seem to be:
 3. Open homekit to 'see' the device
 4. Swap to the NRF connect application to connect to the device.
 5. Perform the pairing in homekit, if this fails, go back to 4.
-
-
-
-### Compiling
-```
-./apply_patch_ble.sh
-reset; cmake -DCMAKE_BUILD_TYPE=Debug -DENABLE_BLE=YES ../ && VERBOSE=1 make && ./main_ble
-```
