@@ -3,4 +3,4 @@
 	url = https://github.com/apple/HomeKitADK.git
 [submodule "bluez_inc"]
 	path = bluez_inc
-	url = git@github.com:iwanders/weliem_bluez_inc.git
+	url = git@github.com:weliem/bluez_inc.git
