@@ -634,6 +634,22 @@ void HAPPlatformBLEPeripheralManagerRemoveAllServices(HAPPlatformBLEPeripheralMa
   //  [peripheral removeAllServices];
 }
 
+std::string to_string(HAPPlatformBLEPeripheralManagerCharacteristicProperties properties){
+  std::string prop;
+  if (properties.read)
+      prop += "PROP_READ";
+  if (properties.write)
+    prop += " PROP_WRITE";
+  if (properties.writeWithoutResponse)
+    prop += " PROP_WRITE_WITHOUT_RESP";
+  if (properties.notify)
+    prop += " PROP_NOTIFY";
+  if (properties.indicate)
+    prop += " PROP_INDICATE";
+
+  return prop;
+}
+
 static guint makePermission(HAPPlatformBLEPeripheralManagerCharacteristicProperties properties) {
   guint prop = 0;
 
@@ -687,7 +703,8 @@ HAPError HAPPlatformBLEPeripheralManagerAddCharacteristic(
 
   const char* recent_service = c->recent_service.str;
 
-  HAPLogInfo(&logObject, "add characteristic, const bytes: %lu ", constNumBytes);
+  std::string behaviour = to_string(properties);
+  HAPLogInfo(&logObject, "add characteristic, const bytes: %lu  behaviour: %s", constNumBytes, behaviour.c_str());
   hexdump(type->bytes, 16);
 
 
