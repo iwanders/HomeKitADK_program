@@ -309,7 +309,7 @@ const char *on_local_char_write(const Application *application, const char *addr
           bytes,
           len,
           c->delegate.context);
-  HAPLogError(&logObject, "handleReadRequest returned %d, len was: %zu", err, len);
+  HAPLogError(&logObject, "handleWriteRequest returned %d, len was: %zu", err, len);
   if (err) {
       HAPAssert(err == kHAPError_InvalidState || err == kHAPError_OutOfResources);
       return BLUEZ_ERROR_REJECTED;
