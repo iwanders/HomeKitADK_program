@@ -719,6 +719,7 @@ HAPError HAPPlatformBLEPeripheralManagerAddCharacteristic(
   key.characteristic = b;
   if (constNumBytes != 0) {
     HAPLogError(&logObject, "Have const data that needs handling.");
+    hexdump(constBytes, constNumBytes);
     std::vector<uint8_t> data;
     data.resize(constNumBytes);
     memcpy(data.data(), constBytes, constNumBytes);
