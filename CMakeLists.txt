@@ -3,6 +3,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 # Set global log level to 3.
 add_compile_definitions(HAP_LOG_LEVEL=3)
+add_compile_definitions(HAP_LOG_SENSITIVE=1)
 
 # HAP OpenSSL needs this. (libssl-dev)
 find_package(OpenSSL REQUIRED)
