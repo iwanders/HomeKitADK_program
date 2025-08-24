@@ -73,7 +73,7 @@ std::string hexdump(const void* b, std::size_t length)
   std::stringstream ss;
   for (std::size_t i = 0; i < length; i++)
   {
-    ss << "" << std::setfill('0') << std::setw(2) << std::hex << int{ d[i] } << " ";
+    ss << "0x" << std::setfill('0') << std::setw(2) << std::hex << int{ d[i] } << ", ";
   }
   const auto z = ss.str();
   HAPLogInfo(&logObject, "hdump %s", z.c_str());
