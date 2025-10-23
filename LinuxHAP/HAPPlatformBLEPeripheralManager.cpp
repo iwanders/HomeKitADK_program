@@ -4,6 +4,11 @@
 // you may not use this file except in compliance with the License.
 // See [CONTRIBUTORS.md] for the list of HomeKit ADK project authors.
 
+
+/*
+IW; DO_FAKE_REQUEST=1 to play mock requests.
+*/
+
 #include <map>
 #include <vector>
 #include <string>
@@ -799,6 +804,36 @@ HAPError HAPPlatformBLEPeripheralManagerAddDescriptor(
   return kHAPError_None;
 }
 
+void perform_fake_request(OurBLEContainer* c){
+  // Force connection.
+  c->connection_handle++;
+  if (c->delegate.handleConnectedCentral) {
+    (*(c->delegate.handleConnectedCentral))(c->manager, c->connection_handle, c->delegate.context);
+  }
+
+  struct FakeWrite{
+    const char* service_uuid;
+    const char* char_uuid;
+    std::vector<std::uint8_t> payload;
+  };
+
+  const auto proto_srv = "000000a2-0000-1000-8000-0026bb765291";
+  const auto proto_service_sig_chr = "000000a5-0000-1000-8000-0026bb765291";
+
+
+  //  FakeWrite w{proto_srv, proto_service_sig_chr, {0x00, 0x06, 0x0d, 0x10, 0x00}}; // good service signature request.
+  FakeWrite w{proto_srv, proto_service_sig_chr, {0x00, 0xf6, 0x0d, 0x10, 0x00}}; // bad service signature request, invalid Opcode
+
+  const auto address = "00:00:00:00:00:00";
+  GByteArray* data = g_byte_array_new();
+  g_byte_array_append(data, (guint8*) w.payload.data(), w.payload.size());
+  on_local_char_write(c->app, address, w.service_uuid, w.char_uuid, data); 
+  g_byte_array_free(data, true);
+
+  // Next, read the response.
+  on_local_char_read(c->app, address, w.service_uuid, w.char_uuid); 
+}
+
 void HAPPlatformBLEPeripheralManagerPublishServices(HAPPlatformBLEPeripheralManagerRef blePeripheralManager) {
   HAPPrecondition(blePeripheralManager);
 
@@ -811,17 +846,28 @@ void HAPPlatformBLEPeripheralManagerPublishServices(HAPPlatformBLEPeripheralMana
     c->registered_application = true;
   }
 
+    /*
+const char *on_local_char_write(const Application *application, const char *address, const char *service_uuid,
+                          const char *char_uuid, GByteArray *byteArray) {
+  */
+
   // Lets also start a background thread to push the event loop service onto the HAP service loop.
   if (!c->started_main_loop) {
     LoopRunContext ctx;
     ctx.main_loop = 0;
     ctx.main_context = g_main_loop_get_context(c->loop);
-    c->service_pusher = std::thread([ctx](){
+    c->service_pusher = std::thread([ctx, lc = c](){
+      std::size_t i = 0;
       while (true) {
         LoopRunContext copied = ctx;
         int r = HAPPlatformRunLoopScheduleCallback(run_main_loop, &copied, sizeof(ctx));
         HAPAssert(r == kHAPError_None);
         usleep(10000);
+        i++;
+
+        if (i == 5 && std::getenv("DO_FAKE_REQUEST") != nullptr){
+          perform_fake_request(lc);
+        }
       }
     });
     c->started_main_loop = true;

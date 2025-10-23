@@ -62,3 +62,9 @@ Best steps seem to be:
 3. Open homekit to 'see' the device, try to pair.
 4. Swap to the NRF connect application to connect to the device.
 5. Perform the pairing in homekit, if this fails, go back to 4.
+
+## Mock request
+Very sketchy fake request insertion using the hardcoded request from `perform_fake_request` and run with:
+```
+cmake -DCMAKE_BUILD_TYPE=Debug ../ && make && DO_FAKE_REQUEST=1 ./main_ble
+```
