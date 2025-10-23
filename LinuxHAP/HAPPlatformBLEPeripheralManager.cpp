@@ -822,16 +822,17 @@ void perform_fake_request(OurBLEContainer* c){
 
 
   //  FakeWrite w{proto_srv, proto_service_sig_chr, {0x00, 0x06, 0x0d, 0x10, 0x00}}; // good service signature request.
-  FakeWrite w{proto_srv, proto_service_sig_chr, {0x00, 0xf6, 0x0d, 0x10, 0x00}}; // bad service signature request, invalid Opcode
+  // FakeWrite w{proto_srv, proto_service_sig_chr, {0x00, 0xf6, 0x0d, 0x10, 0x00}}; // bad service signature request, invalid Opcode
+  FakeWrite w{proto_srv, proto_service_sig_chr, {0x00, 0x01, 0x9c, 0xF1, 0x00}}; // bad characteristic request, invalid instance id
 
   const auto address = "00:00:00:00:00:00";
   GByteArray* data = g_byte_array_new();
   g_byte_array_append(data, (guint8*) w.payload.data(), w.payload.size());
-  on_local_char_write(c->app, address, w.service_uuid, w.char_uuid, data); 
+  on_local_char_write(c->app, address, w.service_uuid, w.char_uuid, data);
   g_byte_array_free(data, true);
 
   // Next, read the response.
-  on_local_char_read(c->app, address, w.service_uuid, w.char_uuid); 
+  on_local_char_read(c->app, address, w.service_uuid, w.char_uuid);
 }
 
 void HAPPlatformBLEPeripheralManagerPublishServices(HAPPlatformBLEPeripheralManagerRef blePeripheralManager) {
