@@ -68,3 +68,9 @@ Very sketchy fake request insertion using the hardcoded request from `perform_fa
 ```
 cmake -DCMAKE_BUILD_TYPE=Debug ../ && make && DO_FAKE_REQUEST=1 ./main_ble
 ```
+
+## Replay
+This just replaces the hap platform peripheral manager.
+```
+cmake -DCMAKE_BUILD_TYPE=Debug -DENABLE_REPLAY=ON ../ && make && ENABLE_REPLAY=1 ./main_ble
+```

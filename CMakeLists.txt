@@ -14,7 +14,8 @@ find_package(OpenSSL REQUIRED)
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(DSNSD REQUIRED avahi-compat-libdns_sd)
 
-option(ENABLE_BLE "Try mocking the BLE platform." OFF)
+option(ENABLE_BLE "Try mocking the BLE platform." ON)
+option(ENABLE_REPLAY "Build the replay things." OFF)
 
 if(ENABLE_BLE)
   include(FindPkgConfig)
@@ -96,9 +97,7 @@ target_include_directories(homekit_crypto PUBLIC
 )
 target_link_libraries(homekit_crypto PUBLIC homekit_util OpenSSL::SSL)
 
-
-
-add_library(homekit_linux STATIC
+set(homekit_linux_files 
   ./HomeKitADK/PAL/Linux/HAPPlatform.c
   ./HomeKitADK/PAL/Linux/HAPPlatformAbort.c
   ./HomeKitADK/PAL/Linux/HAPPlatformAccessorySetup.c
@@ -117,6 +116,16 @@ add_library(homekit_linux STATIC
   ./HomeKitADK/PAL/Linux/HAPPlatformSystemCommand.c
   ./HomeKitADK/PAL/Linux/HAPPlatformTCPStreamManager.c
 )
+if (ENABLE_REPLAY)
+  # Remove the random number header, we need to inject it from the replay dictionary.
+  list(REMOVE_ITEM homekit_linux_files  "./HomeKitADK/PAL/Linux/HAPPlatformRandomNumber.c")
+  # Lets also just remove the previous peripheral manager.
+  list(REMOVE_ITEM homekit_linux_files  "./HomeKitADK/PAL/Linux/HAPPlatformBLEPeripheralManager.${HAP_LINUX_BLUETOOTH_EXT}")
+  list(APPEND homekit_linux_files  "./HomeKitADK/PAL/Linux/HAPPlatformFakeExchange.cpp")
+endif()
+
+add_library(homekit_linux STATIC ${homekit_linux_files}
+)
 target_include_directories(homekit_linux PUBLIC
   ./HomeKitADK/PAL/Linux/
   ./HomeKitADK/PAL/
@@ -126,6 +135,9 @@ target_include_directories(homekit_linux PUBLIC
 target_link_directories(homekit_linux PUBLIC ${BLUEZ_LIBRARY_DIR})
 target_link_libraries(homekit_linux PUBLIC  ${BLUEZ_LINK_LIBRARIES} )
 target_link_libraries(homekit_linux PUBLIC  ${DSNSD_LIBRARIES} )
+if (ENABLE_REPLAY)
+  target_compile_definitions(homekit_linux PUBLIC ENABLE_REPLAY=1 )
+endif()
 
 add_library(homekit_adk STATIC
 ./HomeKitADK/HAP/HAPAccessory+Info.c
@@ -210,11 +222,11 @@ target_link_libraries(setup_generator PRIVATE homekit_adk homekit_linux homekit_
 
 
 if(ENABLE_BLE)
-add_executable(main_ble
-  ./HomeKitADK/Applications/Lightbulb/Main.c
-  ./HomeKitADK/Applications/Lightbulb/App.c
-  ./HomeKitADK/Applications/Lightbulb/DB.c
-)
-target_link_libraries(main_ble PRIVATE homekit_adk homekit_linux homekit_pal)
-target_compile_definitions(main_ble PUBLIC BLE=1 )
+  add_executable(main_ble
+    ./HomeKitADK/Applications/Lightbulb/Main.c
+    ./HomeKitADK/Applications/Lightbulb/App.c
+    ./HomeKitADK/Applications/Lightbulb/DB.c
+  )
+  target_link_libraries(main_ble PRIVATE homekit_adk homekit_linux homekit_pal)
+  target_compile_definitions(main_ble PUBLIC BLE=1 )
 endif()
