@@ -4,13 +4,13 @@
 #include <map>
 #include <vector>
 #include <string>
+#include <cstring>
 #include <memory>
 #include <thread>
 #include <sstream>
 #include <iomanip>
 
 #include <pthread.h>
-#include <glib.h>
 #include <stdio.h>
 
 #include "HAPLog.h"
@@ -19,20 +19,11 @@
 #include "HAPAssert.h"
 #include "HAPPlatformLinuxShared.h"
 
-#include "binc/adapter.h"
-#include "binc/device.h"
-#include "binc/application.h"
-#include "binc/characteristic.h"
-
-#include "binc/logger.h"
-#include "binc/agent.h"
-#include "binc/application.h"
-#include "binc/advertisement.h"
-#include "binc/utility.h"
+#include "binc/forward_decl.h"
 
 
 static const HAPLogObject logObjectBleLinuxShared = { .subsystem = kHAPPlatform_LogSubsystem, .category = "BLELinuxShared" };
- 
+
 std::string hexdump(const void* b, std::size_t length)
 {
   const uint8_t* d = reinterpret_cast<const uint8_t*>(b);
@@ -60,7 +51,7 @@ struct RawUUID{
     return std::string(str) < std::string(other.str);
   }
   void load(const char* data) {
-    memcpy(str, data, sizeof(str));
+    std::memcpy(str, data, sizeof(str));
   }
   operator std::string() const {
     return std::string(str);
@@ -147,9 +138,7 @@ struct OurBLEContainer {
 
   std::thread service_pusher;
 
-  void service(){
-    g_main_context_iteration(g_main_loop_get_context(loop), FALSE);
-  }
+  void service();
 
   // There's an assert that checks if these handles and counters are zero.
   uint16_t handle_counter{1};
@@ -189,5 +178,3 @@ std::string to_string(HAPPlatformBLEPeripheralManagerCharacteristicProperties pr
 
   return prop;
 }
-
-

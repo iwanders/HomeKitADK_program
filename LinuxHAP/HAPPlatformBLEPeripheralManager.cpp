@@ -22,8 +22,6 @@ IW; DO_FAKE_REQUEST=1 to play mock requests.
 #include "HAPPlatformBLEPeripheralManager+Init.h"
 #include "HAPPlatformBLEPeripheralManager.h"
 #include "HAPAssert.h"
-#include "HAPPlatformLinuxShared.h"
-
 
 
 #include <math.h>
@@ -50,6 +48,8 @@ IW; DO_FAKE_REQUEST=1 to play mock requests.
 #include "binc/utility.h"
 
 
+#include "HAPPlatformLinuxShared.h"
+
 
 
 // This seems to do what we want:
@@ -73,7 +73,9 @@ void  run_main_loop(void* _Nullable context, size_t contextSize) {
 
 static const HAPLogObject logObject = { .subsystem = kHAPPlatform_LogSubsystem, .category = "BLEPeripheralManager" };
 
-
+void OurBLEContainer::service(){
+  g_main_context_iteration(g_main_loop_get_context(loop), FALSE);
+}
 
 void on_powered_state_changed(Adapter *adapter, gboolean state) {
   OurBLEContainer* c = reinterpret_cast<OurBLEContainer*>(binc_adapter_get_user_data(adapter));

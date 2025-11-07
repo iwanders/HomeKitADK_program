@@ -1,34 +1,192 @@
 
 
 #include <map>
+#include <unistd.h>
 #include <vector>
 #include <string>
 #include <memory>
 #include <thread>
 #include <sstream>
+#include <iostream>
 #include <iomanip>
 
 #include "HAPLog.h"
 #include "HAPPlatformBLEPeripheralManager+Init.h"
 #include "HAPPlatformBLEPeripheralManager.h"
 #include "HAPAssert.h"
+
+struct GDBusConnection;
+struct GMainLoop;
+
 #include "HAPPlatformLinuxShared.h"
 
+using Bytes = std::vector<std::uint8_t>;
 
 static const HAPLogObject logObject = { .subsystem = kHAPPlatform_LogSubsystem, .category = "BLEPeripheralManager" };
 
+static OurBLEContainer* our_container = nullptr;
+
+Bytes on_local_char_read(const OurBLEContainer* c, const char *address, const char *service_uuid,
+                        const char *char_uuid);
+bool on_local_char_write(const OurBLEContainer* c, const char *address, const char *service_uuid,
+                          const char *char_uuid, Bytes byteArray);
 
 
-struct ReplayController {
+std::string hexdump(const Bytes& bytes)
+{
+  const auto b = bytes.data();
+  const auto length = bytes.size();
+  const uint8_t* d = reinterpret_cast<const uint8_t*>(b);
+  std::stringstream ss;
+  for (std::size_t i = 0; i < length; i++)
+  {
+    ss << "0x" << std::setfill('0') << std::setw(2) << std::hex << int{ d[i] } << ", ";
+  }
+  const auto z = ss.str();
+  HAPLogInfo(&logObjectBleLinuxShared, "hdump %s", z.c_str());
+  return z;
+}
 
 
-};
+void  run_main_loop(void* _Nullable context, size_t contextSize) {
+  usleep(1000000);
+  // THis is a pointer to a pointer.
+  OurBLEContainer* c = *reinterpret_cast<OurBLEContainer**>(context);
+  std::cout << "Doing c->delegate.handleConnectedCentral " << c->delegate.handleConnectedCentral << std::endl;
+  std::cout << "Doing c->manager " << c->manager << std::endl;
 
-static ReplayController control;
+  if (c->delegate.handleConnectedCentral && c->manager) {
+    std::cout << "cc things" << std::endl;
+
+    c->connection_handle++;
+    (*(c->delegate.handleConnectedCentral))(c->manager, c->connection_handle, c->delegate.context);
+
+
+
+
+    struct FakeWrite{
+      const char* service_uuid;
+      const char* char_uuid;
+      std::vector<std::uint8_t> payload;
+    };
+
+    const auto proto_srv = "000000a2-0000-1000-8000-0026bb765291";
+    const auto proto_service_sig_chr = "000000a5-0000-1000-8000-0026bb765291";
+    const auto pairing_srv = "00000055-0000-1000-8000-0026bb765291";
+    const auto pairing_srv_pair_setup_chr = "0000004c-0000-1000-8000-0026bb765291";
+    const auto bulb_srv = "00000043-0000-1000-8000-0026bb765291";
+    const auto bulb_srv_on_chr = "00000025-0000-1000-8000-0026bb765291";
+
+
+    //  FakeWrite w{proto_srv, proto_service_sig_chr, {0x00, 0x06, 0x0d, 0x10, 0x00}}; // good service signature request.
+    // FakeWrite w{proto_srv, proto_service_sig_chr, {0x00, 0xf6, 0x0d, 0x10, 0x00}}; // bad service signature request, invalid Opcode
+    //FakeWrite w{proto_srv, proto_service_sig_chr, {0x00, 0x01, 0x9c, 0xF1, 0x00}}; // bad characteristic request, invalid instance id
+
+    // Good pair setup;
+    //FakeWrite w{pairing_srv, pairing_srv_pair_setup_chr, {0x00, 0x02, 0xf3, 0x22, 0x00, 0x0b, 0x00, 0x01, 0x06, 0x00, 0x01, 0x00, 0x06, 0x01,  0x01, 0x09, 0x01, 0x01}};
+    // Bad pair setup.
+    // FakeWrite w{pairing_srv, pairing_srv_pair_setup_chr, {0x00, 0x02, 0xf3, 0x22, 0xff, 0x0b, 0x00, 0x01, 0x06, 0x00, 0x01, 0x00, 0x06, 0x01,  0x01, 0x09, 0x01, 0x01}}; // bad instance id.
+    //FakeWrite w{pairing_srv, pairing_srv_pair_setup_chr, {0x00, 0x02, 0xf3, 0x22, 0x00, 0x0b, 0x00, 0x01, 0xf6, 0x00, 0x01, 0x00, 0x06, 0x01,  0x01, 0x09, 0x01, 0x01}};
+
+    // Write to the lightbulb while not authenticated yet.
+    //FakeWrite w{bulb_srv, bulb_srv_on_chr, {0x00, 0x02, 0xf3, 0x33, 0x00, 0x0b, 0x00, 0x01, 0xf6, 0x00, 0x01, 0x00, 0x06, 0x01,  0x01, 0x09, 0x01, 0x01}};
+    //// Read the lightbulb while not authenticated.
+    FakeWrite w{bulb_srv, bulb_srv_on_chr, {0x00, 0x03, 0xf3, 0x33, 0x00, 0x0b, 0x00, 0x01, 0xf6, 0x00, 0x01, 0x00, 0x06, 0x01,  0x01, 0x09, 0x01, 0x01}};
+
+    const auto address = "00:00:00:00:00:00";
+    on_local_char_write(c , address, w.service_uuid, w.char_uuid, w.payload);
+
+    // Next, read the response.
+    on_local_char_read(c , address, w.service_uuid, w.char_uuid);
+
+  }
+
+
+  int r = HAPPlatformRunLoopScheduleCallback(run_main_loop, &c,sizeof(void*));
+  HAPAssert(r == kHAPError_None);
+}
+
+// This function is called when a read is done
+// Use this to set the characteristic value if it is not set or to reject the read request
+Bytes on_local_char_read(const OurBLEContainer* c, const char *address, const char *service_uuid,
+                        const char *char_uuid) {
+
+  CharacteristicId key = CharacteristicId::service_characteristic(service_uuid, char_uuid);
+  std::string key_str = key;
+  HAPLogError(&logObject, "Reading %s with %p", key_str.c_str(), c);
+
+  const auto handle_it = c->characteristic_handles.find(key);
+  HAPAssert(handle_it != c->characteristic_handles.end());
+
+  const auto handle_id = handle_it->second;
+
+  Bytes bytes;
+  bytes.resize(kHAPPlatformBLEPeripheralManager_MaxAttributeBytes);
+  size_t len = 0;
+
+  HAPError err = c->delegate.handleReadRequest(
+                      c->manager,
+                      c->connection_handle,
+                      handle_id,
+                      bytes.data(),
+                      kHAPPlatformBLEPeripheralManager_MaxAttributeBytes,
+                      &len,
+                      c->delegate.context);
+  bytes.resize(len);
+  HAPLogError(&logObject, "handleReadRequest returned %d, len is now: %zu", err, len);
+  if (err != kHAPError_None ) {
+    HAPAssert(err == kHAPError_InvalidState || err == kHAPError_OutOfResources);
+    //return BLUEZ_ERROR_REJECTED;
+    throw 1;
+  }
+  hexdump(bytes);
+  return bytes;
+}
+
+// This function should be used to validate or reject a write request
+bool on_local_char_write(const OurBLEContainer* c, const char *address, const char *service_uuid,
+                          const char *char_uuid, Bytes byteArray) {
+ // hexdump(byteArray);
+  ///HAPLogError(&logObject, "write request characteristic <%s> with value <%s>", char_uuid, result->str);
+
+
+  CharacteristicId key = CharacteristicId::service_characteristic(service_uuid, char_uuid);
+  std::string key_str = key;
+  HAPLogError(&logObject, "Writing to  %s with %p", key_str.c_str(), c);
+
+  const auto handle_it = c->characteristic_handles.find(key);
+  HAPAssert(handle_it != c->characteristic_handles.end());
+
+  const auto handle_id = handle_it->second;
+
+  uint8_t bytes[kHAPPlatformBLEPeripheralManager_MaxAttributeBytes] = { 0 };
+  size_t len = byteArray.size();
+  // Copy from the gbyte array into our buffer.
+  memcpy(bytes, byteArray.data(), len);
+  hexdump(byteArray );
+
+  // pass the buffer along.
+  HAPError err = c->delegate.handleWriteRequest(
+          c->manager,
+          c->connection_handle,
+          handle_id,
+          bytes,
+          len,
+          c->delegate.context);
+  HAPLogError(&logObject, "handleWriteRequest returned %d, len was: %zu", err, len);
+  if (err) {
+      HAPAssert(err == kHAPError_InvalidState || err == kHAPError_OutOfResources);
+      return false;
+  }
+  // Nothing further to do.
+
+  return true;
+}
+
 
 extern "C" {
 void HAPPlatformRandomNumberFill(void* bytes, size_t numBytes){
-  
+
 }
 
 
@@ -43,7 +201,9 @@ void HAPPlatformBLEPeripheralManagerCreate(
     blePeripheralManager->container = std::make_unique<OurBLEContainer>().release();
   }
   OurBLEContainer* c = blePeripheralManager->container;
+  c->manager = blePeripheralManager;
 
+  std::cout << "create" << std::endl;
 
 }
 
@@ -121,7 +281,7 @@ HAPError HAPPlatformBLEPeripheralManagerAddService(
   hexdump(type->bytes, 16);
   HAPLogInfo(&logObject, "l: %d ", __LINE__);
   HAPLogInfo(&logObject, "l: %d ", __LINE__);
-  
+
 
   //c->service();
   return kHAPError_None;
@@ -229,17 +389,12 @@ HAPError HAPPlatformBLEPeripheralManagerAddDescriptor(
   char_key.characteristic = c->recent_characteristic;
   DescriptorId key = DescriptorId::characteristic_descriptor(char_key, b.str);
 
-int res = 0;
+  int res = 0;
   HAPAssert(res == 0);
 
   if (constNumBytes != 0) {
     HAPLogInfo(&logObject, "Setting const data for descriptor: %s", std::string(b).c_str());
     hexdump(constBytes, constNumBytes);
-    GByteArray *cudArray = g_byte_array_sized_new(constNumBytes);
-    g_byte_array_append(cudArray, reinterpret_cast<const unsigned char*>(constBytes), constNumBytes);
- 
-    HAPAssert(res == 0);
-    g_byte_array_free(cudArray, true);
   }
 
   // Good enough for now?
@@ -263,14 +418,11 @@ void HAPPlatformBLEPeripheralManagerPublishServices(HAPPlatformBLEPeripheralMana
     c->registered_application = true;
   }
 
-    /*
-const char *on_local_char_write(const Application *application, const char *address, const char *service_uuid,
-                          const char *char_uuid, GByteArray *byteArray) {
-  */
-
   // Lets also start a background thread to push the event loop service onto the HAP service loop.
   if (!c->started_main_loop) {
 
+    int r = HAPPlatformRunLoopScheduleCallback(run_main_loop, &c, sizeof(void*));
+    HAPAssert(r == kHAPError_None);
   }
 
 }
@@ -302,9 +454,9 @@ void HAPPlatformBLEPeripheralManagerStartAdvertising(
   const uint8_t* actual_data = ((uint8_t*)advertisingBytes) + trim;
   numAdvertisingBytes = numAdvertisingBytes- trim;
   numAdvertisingBytes = 19; // and just truncate the rear.
- 
+
   uint16_t COMPANY_IDENTIFIER_CODE =  0x004c;
- 
+
   //HAPLogFault(&logObject, "pairable before %d", before);
 }
 
@@ -312,13 +464,8 @@ void HAPPlatformBLEPeripheralManagerStopAdvertising(HAPPlatformBLEPeripheralMana
   HAPPrecondition(blePeripheralManager);
 
   OurBLEContainer* c = blePeripheralManager->container;
-  HAPPrecondition(c->default_adapter);
-  HAPPrecondition(c->advertisement);
   HAPLog(&logObject, __func__);
 
-
-  // This here causes a bad free? Why is that? Do we have to service the main loop before doing this?
-  //binc_advertisement_free(c->advertisement);
 }
 
 void HAPPlatformBLEPeripheralManagerCancelCentralConnection(
@@ -328,7 +475,7 @@ void HAPPlatformBLEPeripheralManagerCancelCentralConnection(
   HAPLog(&logObject, __func__);
 
   // Request a disconnect.
-  OurBLEContainer* c = blePeripheralManager->container; 
+  OurBLEContainer* c = blePeripheralManager->container;
 }
 
 HAP_RESULT_USE_CHECK
@@ -344,5 +491,6 @@ HAPError HAPPlatformBLEPeripheralManagerSendHandleValueIndication(
 
   return kHAPError_None;
 }
+
 
 } // extern C
