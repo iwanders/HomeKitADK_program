@@ -892,16 +892,19 @@ void test_message_exchange(OurBLEContainer* c){
     // Next, we perform a disconnect, then connect again and try a pair resume.
     //
     // Disconnect.
+    std::cout << "\n\n\nDISCONNECTING\n\n\n" << std::endl;
     (*(c->delegate.handleDisconnectedCentral))(c->manager, c->connection_handle, c->delegate.context);
     // COnnect again.
+    std::cout << "\n\n\nCONNECTING\n\n\n" << std::endl;
     c->connection_handle++;
     (*(c->delegate.handleConnectedCentral))(c->manager, c->connection_handle, c->delegate.context);
 
 
+    std::cout << "\n\n\nPAIR RESUME\n\n\n" << std::endl;
     // Now we do the pair resume.
     {
       // Super legit random...
-      for (std::size_t n = 0; n < 32; n++){
+      for (std::uint8_t n = 0; n < 32; n++){
           appendRandomBytes({n});
       }
     }

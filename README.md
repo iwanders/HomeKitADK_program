@@ -3,6 +3,9 @@
 This repo is a _very hacky_ repo to run the examples from the `HomeKitADK`. Goal is to get a capture of packets of the
 reference implementation, nothing more.
 
+It now also contains an example that allows playing messages against the reference implementation. See the `replay` section
+at the bottom of this page.
+
 ## Wifi
 
 This is mostly just works because the Linux PAL from upstream handles network.
@@ -74,3 +77,4 @@ This just replaces the hap platform peripheral manager.
 ```
 cmake -DCMAKE_BUILD_TYPE=Debug -DENABLE_REPLAY=ON ../ && make && ENABLE_REPLAY=1 ./main_ble
 ```
+This replays an entire pairing procedure including lightbulb toggles. This was mostly built to figure out the
