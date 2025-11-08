@@ -66,6 +66,7 @@ struct RawUUID{
     );
     return res;
   }
+
 };
 
 /// A characteristic is denoted by its uuid and the service uuid.
