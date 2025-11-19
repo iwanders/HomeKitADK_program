@@ -43,6 +43,7 @@ static HAPAccessory accessory = { .aid = 1,
                                   .callbacks = { .identify = IdentifyAccessory } };
  
 const std::size_t BULB_SERVICE_INDEX = 3;  
+const std::size_t BULB_ON_OFF_CHAR_INDEX = 2;
 #include "HAPPlatformLinuxShared.h"
 
 using Bytes = std::vector<std::uint8_t>;
@@ -54,6 +55,7 @@ bool on_local_char_write(const OurBLEContainer* c, const char *service_uuid, con
 
 // Random bytes is consumed from the left side, we can append to it.
 static std::deque<std::uint8_t> random_bytes;
+static Bytes most_recent_advertising_payload;
 
 extern "C" {
 
@@ -1044,6 +1046,7 @@ void test_message_exchange(OurBLEContainer* c){
 
 
     {
+      std::cout << " random_bytes: " << random_bytes.size() << std::endl;
       // Lets tell HAP a value changed and see the broadcast.
       std::cout << "\n\n\nDISCONNECTING\n\n\n" << std::endl;
       (*(c->delegate.handleDisconnectedCentral))(c->manager, c->connection_handle, c->delegate.context);
@@ -1055,11 +1058,18 @@ void test_message_exchange(OurBLEContainer* c){
       // HAPAccessoryServerRef& get_accessory_server()
       const auto z = AppGetAccessoryInfo();
       const HAPService* bulb_service =  accessory.services[BULB_SERVICE_INDEX];
-      const HAPCharacteristic* bulb_on_off_char = accessory.services[BULB_SERVICE_INDEX]->characteristics[0];
+      const HAPCharacteristic* bulb_on_off_char = accessory.services[BULB_SERVICE_INDEX]->characteristics[BULB_ON_OFF_CHAR_INDEX];
       // server, request->characteristic, request->service, request->accessory
       
       auto x = get_accessory_server();
       HAPAccessoryServerRaiseEvent(&x, bulb_on_off_char, bulb_service, &accessory);
+
+      Bytes expected = {0x02, 0x01, 0x06, 0x1b, 0xff, 0x4c, 0x00, 0x11, 0x36, 0x57, 0x3b, 0x20, 0xa7, 0xe7, 0xc4, 0xb5, 0x5c, 0xf2, 0x68, 0x76, 0x97, 0x00, 0xa2, 0x5d, 0xd7, 0x2d, 0x91, 0xcd, 0x02, 0xf5, 0xf4};
+      if (most_recent_advertising_payload != expected ){
+        std::cerr << "boo" << std::endl;
+        std::exit(1);
+      }
+      std::cout << "\n New advertising payload: " << hexdump(most_recent_advertising_payload) << std::endl;
     }
 
     //
@@ -1461,6 +1471,11 @@ void HAPPlatformBLEPeripheralManagerStartAdvertising(
   HAPLogInfo(&logObject, "advertising bytes: %zu ", numAdvertisingBytes);
 
   hexdump(advertisingBytes, numAdvertisingBytes);
+
+  
+  most_recent_advertising_payload.clear();
+  most_recent_advertising_payload.resize(numAdvertisingBytes);
+  std::memcpy(most_recent_advertising_payload.data(), advertisingBytes, numAdvertisingBytes);
 
   // Data contains too much, so we need to trim the first 7 bytes...
   // 0x02,0x01,0x06,0x16,0xff,0x4c,0x00,    0x06,0x31
