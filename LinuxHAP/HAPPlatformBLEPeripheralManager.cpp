@@ -16,8 +16,8 @@ IW; DO_FAKE_REQUEST=1 to play mock requests.
 #include <thread>
 #include <sstream>
 #include <iomanip>
-
-
+  
+#include "HAPBLEAccessoryServer+Advertising.h"
 #include "HAPLog.h"
 #include "HAPPlatformBLEPeripheralManager+Init.h"
 #include "HAPPlatformBLEPeripheralManager.h"
@@ -760,6 +760,7 @@ void HAPPlatformBLEPeripheralManagerStartAdvertising(
   HAPLogInfo(&logObject, "advertising bytes: %zu ", numAdvertisingBytes);
 
   hexdump(advertisingBytes, numAdvertisingBytes);
+
 
   // Data contains too much, so we need to trim the first 7 bytes...
   // 0x02,0x01,0x06,0x16,0xff,0x4c,0x00,    0x06,0x31

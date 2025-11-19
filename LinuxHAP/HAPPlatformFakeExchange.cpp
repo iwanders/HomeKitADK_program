@@ -13,14 +13,36 @@
 #include <deque>
 #include <filesystem>
 
+#include "HAP.h"
 #include "HAPLog.h"
 #include "HAPPlatformBLEPeripheralManager+Init.h"
 #include "HAPPlatformBLEPeripheralManager.h"
 #include "HAPAssert.h"
 
+extern "C" {
+  HAPAccessoryServerRef  get_accessory_server();
+}
 struct GDBusConnection;
 struct GMainLoop;
 
+#include "App.h"
+#include "DB.h"
+static HAPAccessory accessory = { .aid = 1,
+                                  .category = kHAPAccessoryCategory_Lighting,
+                                  .name = "Acme Light Bulb",
+                                  .manufacturer = "Acme",
+                                  .model = "LightBulb1,1",
+                                  .serialNumber = "099DB48E9E28",
+                                  .firmwareVersion = "1",
+                                  .hardwareVersion = "1",
+                                  .services = (const HAPService* const[]) { &accessoryInformationService,
+                                                                            &hapProtocolInformationService,
+                                                                            &pairingService,
+                                                                            &lightBulbService,
+                                                                            NULL },
+                                  .callbacks = { .identify = IdentifyAccessory } };
+ 
+const std::size_t BULB_SERVICE_INDEX = 3;  
 #include "HAPPlatformLinuxShared.h"
 
 using Bytes = std::vector<std::uint8_t>;
@@ -44,6 +66,8 @@ void writeSaltAndVerifier(const Bytes& salt, const Bytes& verifier);
 void writeDeviceId(const Bytes& data);
 void writePairFourLetter(const Bytes& data);
 void appendRandomBytes(const Bytes& data);
+ 
+
 std::string hexdump(const Bytes& bytes)
 {
   const auto b = bytes.data();
@@ -1017,6 +1041,26 @@ void test_message_exchange(OurBLEContainer* c){
         0x02, 0x43, 0x00, 0x8e, 0x00, 0x01, 0x8c, 0x06, 0x01, 0x02, 0x03, 0x20, 0x8f, 0x40, 0xc5, 0xad, 0xb6, 0x8f, 0x25, 0x62, 0x4a, 0xe5, 0xb2, 0x14, 0xea, 0x76, 0x7a, 0x6e, 0xc9, 0x4d, 0x82, 0x9d, 0x3d, 0x7b, 0x5e, 0x1a, 0xd1, 0xba, 0x6f, 0x3e, 0x21, 0x38, 0x28, 0x5f, 0x05, 0x65, 0x63, 0xf1, 0x83, 0x5e, 0x9c, 0x44, 0x69, 0x75, 0xe7, 0x5c, 0xd6, 0x4a, 0x10, 0x4a, 0x12, 0xeb, 0xe3, 0x6c, 0xe3, 0x58, 0xb5, 0xf7, 0x33, 0xf8, 0xd9, 0xb0, 0xd5, 0xec, 0xe2, 0x15, 0x4b, 0x95, 0x9b, 0x13, 0x16, 0xd9, 0x31, 0x96, 0xde, 0xd6, 0xb6, 0xe1, 0x03, 0x62, 0x42, 0x5c, 0xf2, 0x45, 0x08, 0x4d, 0x99, 0x7a, 0x8c, 0xeb, 0x01, 0x9e, 0x5c, 0xa4, 0x0b, 0x4e, 0x32, 0x42, 0xc6, 0xc3, 0xac, 0x4c, 0x2c, 0xfc, 0x39, 0xa4, 0x14, 0x1e, 0x41, 0x13, 0x0b, 0x01, 0xe4, 0x45, 0x50, 0xd9, 0xf7, 0x42, 0x5d, 0x35, 0xda, 0x97, 0x87, 0xc4, 0xe1, 0x98, 0x52, 0x70, 0x46, 0xa1, 0x2e, 0xe4, 0xf7, 0xab, 0x6a, 0xf9, 0x42
     }
     );
+
+
+    {
+      // Lets tell HAP a value changed and see the broadcast.
+      std::cout << "\n\n\nDISCONNECTING\n\n\n" << std::endl;
+      (*(c->delegate.handleDisconnectedCentral))(c->manager, c->connection_handle, c->delegate.context);
+ 
+      // const HAPAccessory* accessory,
+      // const HAPService* service,
+      // const HAPCharacteristic* characteristic,
+      // HAPAccessoryServerRaiseEvent(accessoryConfiguration.server, characteristic, service, accessory);
+      // HAPAccessoryServerRef& get_accessory_server()
+      const auto z = AppGetAccessoryInfo();
+      const HAPService* bulb_service =  accessory.services[BULB_SERVICE_INDEX];
+      const HAPCharacteristic* bulb_on_off_char = accessory.services[BULB_SERVICE_INDEX]->characteristics[0];
+      // server, request->characteristic, request->service, request->accessory
+      
+      auto x = get_accessory_server();
+      HAPAccessoryServerRaiseEvent(&x, bulb_on_off_char, bulb_service, &accessory);
+    }
 
     //
     //

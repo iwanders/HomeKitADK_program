@@ -75,6 +75,6 @@ cmake -DCMAKE_BUILD_TYPE=Debug ../ && make && DO_FAKE_REQUEST=1 ./main_ble
 ## Replay
 This just replaces the hap platform peripheral manager.
 ```
-cmake -DCMAKE_BUILD_TYPE=Debug -DENABLE_REPLAY=ON ../ && make && ENABLE_REPLAY=1 ./main_ble
+cmake -DCMAKE_BUILD_TYPE=Debug -DENABLE_REPLAY=ON ../ && make && ENABLE_REPLAY=1 ./main_replay
 ```
 This replays an entire pairing procedure including lightbulb toggles. This was mostly built to figure out the

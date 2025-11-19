@@ -179,3 +179,4 @@ std::string to_string(HAPPlatformBLEPeripheralManagerCharacteristicProperties pr
 
   return prop;
 }
+ 

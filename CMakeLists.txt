@@ -16,6 +16,7 @@ pkg_check_modules(DSNSD REQUIRED avahi-compat-libdns_sd)
 
 option(ENABLE_BLE "Try mocking the BLE platform." ON)
 option(ENABLE_REPLAY "Build the replay things." OFF)
+option(ENABLE_BLE_BINARY "Build the replay things." OFF)
 
 if(ENABLE_BLE)
   include(FindPkgConfig)
@@ -97,7 +98,7 @@ target_include_directories(homekit_crypto PUBLIC
 )
 target_link_libraries(homekit_crypto PUBLIC homekit_util OpenSSL::SSL)
 
-set(homekit_linux_files 
+set(homekit_linux_files
   ./HomeKitADK/PAL/Linux/HAPPlatform.c
   ./HomeKitADK/PAL/Linux/HAPPlatformAbort.c
   ./HomeKitADK/PAL/Linux/HAPPlatformAccessorySetup.c
@@ -121,7 +122,9 @@ if (ENABLE_REPLAY)
   list(REMOVE_ITEM homekit_linux_files  "./HomeKitADK/PAL/Linux/HAPPlatformRandomNumber.c")
   # Lets also just remove the previous peripheral manager.
   list(REMOVE_ITEM homekit_linux_files  "./HomeKitADK/PAL/Linux/HAPPlatformBLEPeripheralManager.${HAP_LINUX_BLUETOOTH_EXT}")
-  list(APPEND homekit_linux_files  "./HomeKitADK/PAL/Linux/HAPPlatformFakeExchange.cpp")
+  #list(APPEND homekit_linux_files  "./HomeKitADK/PAL/Linux/HAPPlatformFakeExchange.cpp")
+  list(APPEND homekit_linux_files  "./HomeKitADK/Applications/Lightbulb/DB.c")
+  #list(APPEND homekit_linux_files  "./HomeKitADK/Applications/Lightbulb/App.c")
 endif()
 
 add_library(homekit_linux STATIC ${homekit_linux_files}
@@ -135,6 +138,8 @@ target_include_directories(homekit_linux PUBLIC
 target_link_directories(homekit_linux PUBLIC ${BLUEZ_LIBRARY_DIR})
 target_link_libraries(homekit_linux PUBLIC  ${BLUEZ_LINK_LIBRARIES} )
 target_link_libraries(homekit_linux PUBLIC  ${DSNSD_LIBRARIES} )
+target_link_libraries(homekit_linux PUBLIC  homekit_adk )
+target_include_directories(homekit_linux PRIVATE ./HomeKitADK/Applications/Lightbulb/)
 if (ENABLE_REPLAY)
   target_compile_definitions(homekit_linux PUBLIC ENABLE_REPLAY=1 )
 endif()
@@ -211,22 +216,45 @@ add_executable(main
   ./HomeKitADK/Applications/Lightbulb/Main.c
   ./HomeKitADK/Applications/Lightbulb/App.c
   ./HomeKitADK/Applications/Lightbulb/DB.c
+  ./HomeKitADK/PAL/Linux/HAPPlatformRandomNumber.c
+  
 )
 target_link_libraries(main PRIVATE homekit_adk homekit_linux homekit_pal)
 target_compile_definitions(main PUBLIC IP )
 
 add_executable(setup_generator
   ./HomeKitADK/Tools/AccessorySetupGenerator/Main.c
+  ./HomeKitADK/PAL/Linux/HAPPlatformRandomNumber.c
 )
 target_link_libraries(setup_generator PRIVATE homekit_adk homekit_linux homekit_pal)
+ 
+add_executable(main_replay
+  ./HomeKitADK/PAL/Linux/HAPPlatformFakeExchange.cpp
+  ./HomeKitADK/Applications/Lightbulb/App.c
+  ./LinuxHAP/replay_main.c
+)
+target_link_libraries(main_replay PRIVATE homekit_adk homekit_linux homekit_pal)
+target_compile_definitions(main_replay PUBLIC BLE=1 ENABLE_REPLAY=1) 
+target_link_libraries(main_replay PUBLIC  homekit_adk homekit_linux homekit_pal )
+target_include_directories(main_replay PRIVATE ./HomeKitADK/Applications/Lightbulb/) 
+target_compile_definitions(main_replay PUBLIC ENABLE_REPLAY=1 ) 
 
 
-if(ENABLE_BLE)
+if(ENABLE_BLE_BINARY)
   add_executable(main_ble
     ./HomeKitADK/Applications/Lightbulb/Main.c
     ./HomeKitADK/Applications/Lightbulb/App.c
     ./HomeKitADK/Applications/Lightbulb/DB.c
+    ./HomeKitADK/PAL/Linux/HAPPlatformRandomNumber.c
+    "./HomeKitADK/PAL/Linux/HAPPlatformBLEPeripheralManager.${HAP_LINUX_BLUETOOTH_EXT}"
   )
   target_link_libraries(main_ble PRIVATE homekit_adk homekit_linux homekit_pal)
   target_compile_definitions(main_ble PUBLIC BLE=1 )
 endif()
+
+add_executable(setup_payload
+  ./HomeKitADK/Tests/HAPAccessorySetupGetSetupPayloadTest.c
+  ./HomeKitADK/PAL/Linux/HAPPlatformRandomNumber.c
+)
+
+target_link_libraries(setup_payload PRIVATE homekit_adk homekit_linux homekit_pal)
