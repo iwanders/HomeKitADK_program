@@ -1047,6 +1047,7 @@ void test_message_exchange(OurBLEContainer* c){
 
     {
       std::cout << " random_bytes: " << random_bytes.size() << std::endl;
+      std::cout << " Going into the advertisement broadcast reference call. "  << std::endl;
       // Lets tell HAP a value changed and see the broadcast.
       std::cout << "\n\n\nDISCONNECTING\n\n\n" << std::endl;
       (*(c->delegate.handleDisconnectedCentral))(c->manager, c->connection_handle, c->delegate.context);
