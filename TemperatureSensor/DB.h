@@ -55,12 +55,12 @@ extern const HAPService pairingService;
 /**
  * Light Bulb service.
  */
-extern const HAPService lightBulbService;
+extern const HAPService temperatureService;
 
 /**
  * The 'On' characteristic of the Light Bulb service.
  */
-extern const HAPBoolCharacteristic lightBulbOnCharacteristic;
+extern const HAPBoolCharacteristic currentTemperatureCharacteristic;
 
 #if __has_feature(nullability)
 #pragma clang assume_nonnull end

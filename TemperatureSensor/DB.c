@@ -8,6 +8,7 @@
 // Information Service, the Pairing service and finally the service signature exposed by the light bulb.
 
 #include "App.h"
+#include "HAPCharacteristicTypes.h"
 #include "DB.h"
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -36,10 +37,10 @@
 #define kIID_PairingPairingFeatures ((uint64_t) 0x0024)
 #define kIID_PairingPairingPairings ((uint64_t) 0x0025)
 
-#define kIID_LightBulb                 ((uint64_t) 0x0030)
-#define kIID_LightBulbServiceSignature ((uint64_t) 0x0031)
-#define kIID_LightBulbName             ((uint64_t) 0x0032)
-#define kIID_LightBulbOn               ((uint64_t) 0x0033)
+#define kIID_TemperatureSensor                 ((uint64_t) 0x0030)
+#define kIID_TemperatureSensorServiceSignature ((uint64_t) 0x0031)
+#define kIID_TemperatureSensorName             ((uint64_t) 0x0032)
+#define kIID_TemperatureSensorValue               ((uint64_t) 0x0033)
 
 HAP_STATIC_ASSERT(kAttributeCount == 9 + 3 + 5 + 4, AttributeCount_mismatch);
 
@@ -394,9 +395,9 @@ const HAPService pairingService = {
 /**
  * The 'Service Signature' characteristic of the Light Bulb service.
  */
-static const HAPDataCharacteristic lightBulbServiceSignatureCharacteristic = {
+static const HAPDataCharacteristic TemperatureSensorServiceSignatureCharacteristic = {
     .format = kHAPCharacteristicFormat_Data,
-    .iid = kIID_LightBulbServiceSignature,
+    .iid = kIID_TemperatureSensorServiceSignature,
     .characteristicType = &kHAPCharacteristicType_ServiceSignature,
     .debugDescription = kHAPCharacteristicDebugDescription_ServiceSignature,
     .manufacturerDescription = NULL,
@@ -418,9 +419,9 @@ static const HAPDataCharacteristic lightBulbServiceSignatureCharacteristic = {
 /**
  * The 'Name' characteristic of the Light Bulb service.
  */
-static const HAPStringCharacteristic lightBulbNameCharacteristic = {
+static const HAPStringCharacteristic TemperatureSensorNameCharacteristic = {
     .format = kHAPCharacteristicFormat_String,
-    .iid = kIID_LightBulbName,
+    .iid = kIID_TemperatureSensorName,
     .characteristicType = &kHAPCharacteristicType_Name,
     .debugDescription = kHAPCharacteristicDebugDescription_Name,
     .manufacturerDescription = NULL,
@@ -442,10 +443,10 @@ static const HAPStringCharacteristic lightBulbNameCharacteristic = {
 /**
  * The 'On' characteristic of the Light Bulb service.
  */
-const HAPBoolCharacteristic lightBulbOnCharacteristic = {
+const HAPBoolCharacteristic TemperatureSensorValueCharacteristic = {
     .format = kHAPCharacteristicFormat_Bool,
-    .iid = kIID_LightBulbOn,
-    .characteristicType = &kHAPCharacteristicType_On,
+    .iid = kIID_TemperatureSensorValue,
+    .characteristicType = &kHAPCharacteristicType_CurrentTemperature,
     .debugDescription = kHAPCharacteristicDebugDescription_On,
     .manufacturerDescription = NULL,
     .properties = { .readable = true,
@@ -459,21 +460,21 @@ const HAPBoolCharacteristic lightBulbOnCharacteristic = {
                              .supportsDisconnectedNotification = true,
                              .readableWithoutSecurity = false,
                              .writableWithoutSecurity = false } },
-    .callbacks = { .handleRead = HandleLightBulbOnRead, .handleWrite = HandleLightBulbOnWrite }
+    .callbacks = { .handleRead = HandleTemperatureSensorValueRead, .handleWrite = HandleTemperatureSensorValueWrite }
 };
 
 /**
  * The Light Bulb service that contains the 'On' characteristic.
  */
-const HAPService lightBulbService = {
-    .iid = kIID_LightBulb,
-    .serviceType = &kHAPServiceType_LightBulb,
-    .debugDescription = kHAPServiceDebugDescription_LightBulb,
+const HAPService temperatureService = {
+    .iid = kIID_TemperatureSensor,
+    .serviceType = &kHAPServiceType_TemperatureSensor,
+    .debugDescription = kHAPServiceDebugDescription_TemperatureSensor,
     .name = "Light Bulb",
     .properties = { .primaryService = true, .hidden = false, .ble = { .supportsConfiguration = false } },
     .linkedServices = NULL,
-    .characteristics = (const HAPCharacteristic* const[]) { &lightBulbServiceSignatureCharacteristic,
-                                                            &lightBulbNameCharacteristic,
-                                                            &lightBulbOnCharacteristic,
+    .characteristics = (const HAPCharacteristic* const[]) { &TemperatureSensorServiceSignatureCharacteristic,
+                                                            &TemperatureSensorNameCharacteristic,
+                                                            &TemperatureSensorValueCharacteristic,
                                                             NULL }
 };

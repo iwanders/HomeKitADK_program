@@ -52,7 +52,7 @@
  */
 typedef struct {
     struct {
-        bool lightBulbOn;
+        float temperatureValue;
     } state;
     HAPAccessoryServerRef* server;
     HAPPlatformKeyValueStoreRef keyValueStore;
@@ -132,7 +132,7 @@ static HAPAccessory accessory = { .aid = 1,
                                   .services = (const HAPService* const[]) { &accessoryInformationService,
                                                                             &hapProtocolInformationService,
                                                                             &pairingService,
-                                                                            &lightBulbService,
+                                                                            &temperatureService,
                                                                             NULL },
                                   .callbacks = { .identify = IdentifyAccessory } };
 
@@ -148,26 +148,26 @@ HAPError IdentifyAccessory(
 }
 
 HAP_RESULT_USE_CHECK
-HAPError HandleLightBulbOnRead(
+HAPError HandleTemperatureSensorValueRead(
         HAPAccessoryServerRef* server HAP_UNUSED,
         const HAPBoolCharacteristicReadRequest* request HAP_UNUSED,
         bool* value,
         void* _Nullable context HAP_UNUSED) {
-    *value = accessoryConfiguration.state.lightBulbOn;
+    *value = accessoryConfiguration.state.temperatureValue;
     HAPLogInfo(&kHAPLog_Default, "%s: %s", __func__, *value ? "true" : "false");
 
     return kHAPError_None;
 }
 
 HAP_RESULT_USE_CHECK
-HAPError HandleLightBulbOnWrite(
+HAPError HandleTemperatureSensorValueWrite(
         HAPAccessoryServerRef* server,
         const HAPBoolCharacteristicWriteRequest* request,
         bool value,
         void* _Nullable context HAP_UNUSED) {
     HAPLogInfo(&kHAPLog_Default, "%s: %s", __func__, value ? "true" : "false");
-    if (accessoryConfiguration.state.lightBulbOn != value) {
-        accessoryConfiguration.state.lightBulbOn = value;
+    if (accessoryConfiguration.state.temperatureValue != value) {
+        accessoryConfiguration.state.temperatureValue = value;
 
         SaveAccessoryState();
 

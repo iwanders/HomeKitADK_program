@@ -36,7 +36,7 @@ HAPError IdentifyAccessory(
  * Handle read request to the 'On' characteristic of the Light Bulb service.
  */
 HAP_RESULT_USE_CHECK
-HAPError HandleLightBulbOnRead(
+HAPError HandleTemperatureSensorValueRead(
         HAPAccessoryServerRef* server,
         const HAPBoolCharacteristicReadRequest* request,
         bool* value,
@@ -46,7 +46,7 @@ HAPError HandleLightBulbOnRead(
  * Handle write request to the 'On' characteristic of the Light Bulb service.
  */
 HAP_RESULT_USE_CHECK
-HAPError HandleLightBulbOnWrite(
+HAPError HandleTemperatureSensorValueWrite(
         HAPAccessoryServerRef* server,
         const HAPBoolCharacteristicWriteRequest* request,
         bool value,
