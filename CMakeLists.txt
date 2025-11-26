@@ -18,22 +18,14 @@ option(ENABLE_BLE "Try mocking the BLE platform." ON)
 option(ENABLE_REPLAY "Build the replay things." OFF)
 option(ENABLE_BLE_BINARY "Build the replay things." OFF)
 
-if(ENABLE_BLE)
-  include(FindPkgConfig)
-  pkg_check_modules(GLIB glib-2.0 gio-2.0 REQUIRED)
-  include_directories(${GLIB_INCLUDE_DIRS})
+include(FindPkgConfig)
+pkg_check_modules(GLIB glib-2.0 gio-2.0 REQUIRED)
+include_directories(${GLIB_INCLUDE_DIRS})
 
-  add_subdirectory(bluez_inc/binc)
-  set(BLUEZ_INCLUDE_DIR "bluez_inc/")
-  set(BLUEZ_LINK_LIBRARIES "Binc;m;${GLIB_LIBRARIES};") # libbluetooth-internal.a
-  set(HAP_LINUX_BLUETOOTH_EXT "cpp")
-else()
-  set(BLUEZ_INSTALL_DIR "")
-  set(BLUEZ_INCLUDE_DIR "")
-  set(BLUEZ_LIBRARY_DIR "")
-  set(BLUEZ_LINK_LIBRARIES "")
-  set(HAP_LINUX_BLUETOOTH_EXT "c")
-endif()
+add_subdirectory(bluez_inc/binc)
+set(BLUEZ_INCLUDE_DIR "bluez_inc/")
+set(BLUEZ_LINK_LIBRARIES "Binc;m;${GLIB_LIBRARIES};") # libbluetooth-internal.a
+set(HAP_LINUX_BLUETOOTH_EXT "cpp")
 
 # Just going with the installed version of libbluetooth doesn't give the functionality I need.
 # https://stackoverflow.com/a/33144860
@@ -123,10 +115,10 @@ if (ENABLE_REPLAY)
   # Lets also just remove the previous peripheral manager.
   list(REMOVE_ITEM homekit_linux_files  "./HomeKitADK/PAL/Linux/HAPPlatformBLEPeripheralManager.${HAP_LINUX_BLUETOOTH_EXT}")
   #list(APPEND homekit_linux_files  "./HomeKitADK/PAL/Linux/HAPPlatformFakeExchange.cpp")
-  list(APPEND homekit_linux_files  "./HomeKitADK/Applications/Lightbulb/DB.c")
   #list(APPEND homekit_linux_files  "./HomeKitADK/Applications/Lightbulb/App.c")
 endif()
 
+#list(APPEND homekit_linux_files  "./HomeKitADK/Applications/Lightbulb/DB.c")
 add_library(homekit_linux STATIC ${homekit_linux_files}
 )
 target_include_directories(homekit_linux PUBLIC
@@ -217,7 +209,7 @@ add_executable(main
   ./HomeKitADK/Applications/Lightbulb/App.c
   ./HomeKitADK/Applications/Lightbulb/DB.c
   ./HomeKitADK/PAL/Linux/HAPPlatformRandomNumber.c
-  
+
 )
 target_link_libraries(main PRIVATE homekit_adk homekit_linux homekit_pal)
 target_compile_definitions(main PUBLIC IP )
@@ -227,17 +219,18 @@ add_executable(setup_generator
   ./HomeKitADK/PAL/Linux/HAPPlatformRandomNumber.c
 )
 target_link_libraries(setup_generator PRIVATE homekit_adk homekit_linux homekit_pal)
- 
+
 add_executable(main_replay
   ./HomeKitADK/PAL/Linux/HAPPlatformFakeExchange.cpp
   ./HomeKitADK/Applications/Lightbulb/App.c
+  ./HomeKitADK/Applications/Lightbulb/DB.c
   ./LinuxHAP/replay_main.c
 )
 target_link_libraries(main_replay PRIVATE homekit_adk homekit_linux homekit_pal)
-target_compile_definitions(main_replay PUBLIC BLE=1 ENABLE_REPLAY=1) 
+target_compile_definitions(main_replay PUBLIC BLE=1 ENABLE_REPLAY=1)
 target_link_libraries(main_replay PUBLIC  homekit_adk homekit_linux homekit_pal )
-target_include_directories(main_replay PRIVATE ./HomeKitADK/Applications/Lightbulb/) 
-target_compile_definitions(main_replay PUBLIC ENABLE_REPLAY=1 ) 
+target_include_directories(main_replay PRIVATE ./HomeKitADK/Applications/Lightbulb/)
+target_compile_definitions(main_replay PUBLIC ENABLE_REPLAY=1 )
 
 
 if(ENABLE_BLE_BINARY)
@@ -258,3 +251,15 @@ add_executable(setup_payload
 )
 
 target_link_libraries(setup_payload PRIVATE homekit_adk homekit_linux homekit_pal)
+
+
+
+add_executable(main_temperature
+  ./TemperatureSensor/Main.c
+  ./TemperatureSensor/App.c
+  ./TemperatureSensor/DB.c
+  ./HomeKitADK/PAL/Linux/HAPPlatformRandomNumber.c
+
+)
+target_link_libraries(main_temperature PRIVATE homekit_adk homekit_linux homekit_pal)
+target_compile_definitions(main_temperature PUBLIC IP )

@@ -36,6 +36,14 @@ cmake -DCMAKE_BUILD_TYPE=Debug ../ && make && ./main
 
 Next, the device should show up for pairing in the Home app on an iOS device.
 
+Test temperature sensor:
+```
+cmake -DCMAKE_BUILD_TYPE=Debug -DENABLE_REPLAY=OFF -DENABLE_BLE=OFF ../ && make &&  ./main_temperature
+# don't forget:
+rm -f .HomeKitStore/* && ../provision.sh --ip --category 2  --setup-code 111-22-333
+```
+
+
 ## Bluetooth
 
 ~Okay, this is a bit of a stretch and not working yet.~ This is working-ish, it's very flaky (comission flaky, not code-flaky). But good enough to capture the packet contents of a comissioning procedure. Maybe it's flaky because we can't set the device address at

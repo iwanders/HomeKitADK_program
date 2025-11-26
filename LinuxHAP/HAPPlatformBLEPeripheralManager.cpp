@@ -16,13 +16,15 @@ IW; DO_FAKE_REQUEST=1 to play mock requests.
 #include <thread>
 #include <sstream>
 #include <iomanip>
-  
+
+#if ENABLE_BLE==1
 #include "HAPBLEAccessoryServer+Advertising.h"
+#endif
 #include "HAPLog.h"
 #include "HAPPlatformBLEPeripheralManager+Init.h"
 #include "HAPPlatformBLEPeripheralManager.h"
 #include "HAPAssert.h"
-
+ 
 
 #include <math.h>
 #include <stdint.h>

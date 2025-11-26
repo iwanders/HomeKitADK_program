@@ -1073,6 +1073,20 @@ void test_message_exchange(OurBLEContainer* c){
       std::cout << "\n New advertising payload: " << hexdump(most_recent_advertising_payload) << std::endl;
     }
 
+    {
+      std::cout << "\n second: "  << std::endl;
+      // and the second advertisement.
+      const auto z = AppGetAccessoryInfo();
+      const HAPService* bulb_service =  accessory.services[BULB_SERVICE_INDEX];
+      const HAPCharacteristic* bulb_on_off_char = accessory.services[BULB_SERVICE_INDEX]->characteristics[BULB_ON_OFF_CHAR_INDEX];
+      // server, request->characteristic, request->service, request->accessory
+      
+      auto x = get_accessory_server();
+      HAPAccessoryServerRaiseEvent(&x, bulb_on_off_char, bulb_service, &accessory);
+      std::cout << "\n New advertising payload: " << hexdump(most_recent_advertising_payload) << std::endl;
+
+    }
+
     //
     //
     //
