@@ -443,12 +443,17 @@ static const HAPStringCharacteristic TemperatureSensorNameCharacteristic = {
 /**
  * The 'On' characteristic of the Light Bulb service.
  */
-const HAPBoolCharacteristic TemperatureSensorValueCharacteristic = {
-    .format = kHAPCharacteristicFormat_Bool,
+const HAPFloatCharacteristic TemperatureSensorValueCharacteristic = {
+    .format = kHAPCharacteristicFormat_Float,
     .iid = kIID_TemperatureSensorValue,
     .characteristicType = &kHAPCharacteristicType_CurrentTemperature,
     .debugDescription = kHAPCharacteristicDebugDescription_On,
     .manufacturerDescription = NULL,
+    .constraints ={
+        .minimumValue = 0.0,
+        .maximumValue = 100.0,
+        .stepValue = 0.1,
+    },
     .properties = { .readable = true,
                     .writable = true,
                     .supportsEventNotification = true,
@@ -457,7 +462,7 @@ const HAPBoolCharacteristic TemperatureSensorValueCharacteristic = {
                     .supportsAuthorizationData = false,
                     .ip = { .controlPoint = false, .supportsWriteResponse = false },
                     .ble = { .supportsBroadcastNotification = true,
-                             .supportsDisconnectedNotification = true,
+                             .supportsDisconnectedNotification = false,
                              .readableWithoutSecurity = false,
                              .writableWithoutSecurity = false } },
     .callbacks = { .handleRead = HandleTemperatureSensorValueRead, .handleWrite = HandleTemperatureSensorValueWrite }

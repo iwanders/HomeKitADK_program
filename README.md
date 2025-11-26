@@ -43,6 +43,19 @@ cmake -DCMAKE_BUILD_TYPE=Debug -DENABLE_REPLAY=OFF -DENABLE_BLE=OFF ../ && make 
 rm -f .HomeKitStore/* && ../provision.sh --ip --category 2  --setup-code 111-22-333
 ```
 
+to ble
+```
+rm -f .HomeKitStore/* && ../provision.sh --ble --category 2  --setup-code 111-22-333
+cmake -DCMAKE_BUILD_TYPE=Debug -DENABLE_REPLAY=ON -DENABLE_BLE=YES ../ && make && ENABLE_REPLAY=1 ./main_temperature
+```
+
+This ALSO makes the `This accessory requires an update before it can be used in the Home app` when we make the value characteristic:
+```
+                    .ble = { .supportsBroadcastNotification = true,
+                             .supportsDisconnectedNotification = false,
+                             .readableWithoutSecurity = false,
+                             .writableWithoutSecurity = false } },
+```
 
 ## Bluetooth
 

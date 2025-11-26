@@ -254,12 +254,25 @@ target_link_libraries(setup_payload PRIVATE homekit_adk homekit_linux homekit_pa
 
 
 
-add_executable(main_temperature
-  ./TemperatureSensor/Main.c
-  ./TemperatureSensor/App.c
-  ./TemperatureSensor/DB.c
-  ./HomeKitADK/PAL/Linux/HAPPlatformRandomNumber.c
+if(ENABLE_BLE)
+    add_executable(main_temperature
+    ./TemperatureSensor/Main.c
+    ./TemperatureSensor/App.c
+    ./TemperatureSensor/DB.c
+    ./HomeKitADK/PAL/Linux/HAPPlatformRandomNumber.c
+    "./HomeKitADK/PAL/Linux/HAPPlatformBLEPeripheralManager.${HAP_LINUX_BLUETOOTH_EXT}"
 
-)
+    )
+  target_compile_definitions(main_temperature PUBLIC BLE=1 )
+else()
+    add_executable(main_temperature
+    ./TemperatureSensor/Main.c
+    ./TemperatureSensor/App.c
+    ./TemperatureSensor/DB.c
+    ./HomeKitADK/PAL/Linux/HAPPlatformRandomNumber.c
+
+    )
+    target_compile_definitions(main_temperature PUBLIC IP )
+
+endif()
 target_link_libraries(main_temperature PRIVATE homekit_adk homekit_linux homekit_pal)
-target_compile_definitions(main_temperature PUBLIC IP )

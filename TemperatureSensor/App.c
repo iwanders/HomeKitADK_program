@@ -30,7 +30,7 @@
 #include "App.h"
 #include "DB.h"
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
+bool HAP_HACK_FAIL_SESSION = false;
 /**
  * Domain used in the key value store for application data.
  *
@@ -150,8 +150,8 @@ HAPError IdentifyAccessory(
 HAP_RESULT_USE_CHECK
 HAPError HandleTemperatureSensorValueRead(
         HAPAccessoryServerRef* server HAP_UNUSED,
-        const HAPBoolCharacteristicReadRequest* request HAP_UNUSED,
-        bool* value,
+        const HAPFloatCharacteristicReadRequest* request HAP_UNUSED,
+        float* value,
         void* _Nullable context HAP_UNUSED) {
     *value = accessoryConfiguration.state.temperatureValue;
     HAPLogInfo(&kHAPLog_Default, "%s: %s", __func__, *value ? "true" : "false");
@@ -162,8 +162,8 @@ HAPError HandleTemperatureSensorValueRead(
 HAP_RESULT_USE_CHECK
 HAPError HandleTemperatureSensorValueWrite(
         HAPAccessoryServerRef* server,
-        const HAPBoolCharacteristicWriteRequest* request,
-        bool value,
+        const HAPFloatCharacteristicWriteRequest* request,
+        float value,
         void* _Nullable context HAP_UNUSED) {
     HAPLogInfo(&kHAPLog_Default, "%s: %s", __func__, value ? "true" : "false");
     if (accessoryConfiguration.state.temperatureValue != value) {

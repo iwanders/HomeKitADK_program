@@ -38,8 +38,8 @@ HAPError IdentifyAccessory(
 HAP_RESULT_USE_CHECK
 HAPError HandleTemperatureSensorValueRead(
         HAPAccessoryServerRef* server,
-        const HAPBoolCharacteristicReadRequest* request,
-        bool* value,
+        const HAPFloatCharacteristicReadRequest* request,
+        float* value,
         void* _Nullable context);
 
 /**
@@ -48,8 +48,8 @@ HAPError HandleTemperatureSensorValueRead(
 HAP_RESULT_USE_CHECK
 HAPError HandleTemperatureSensorValueWrite(
         HAPAccessoryServerRef* server,
-        const HAPBoolCharacteristicWriteRequest* request,
-        bool value,
+        const HAPFloatCharacteristicWriteRequest* request,
+        float value,
         void* _Nullable context);
 
 /**
